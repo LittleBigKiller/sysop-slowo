@@ -8,7 +8,7 @@ import hashlib
 import threading
 import configparser
 
-from handlers import QueueHandler, GameHandler
+from handlers import *
 
 # ========================= #
 #  Funkcja tworzenia logów  #
@@ -27,10 +27,11 @@ def system_log(prefix, message):
 # ======================== #
 #  Init stałych roboczych  #
 # ======================== #
-PS_TIME = time.time_ns()
-
 system_log("INIT", "Starting SERVER...")
 
+DICT_FILE = "slowa.txt"
+CONF_FILE = "config.ini"
+DB_FILE = "wordgame.db"
 ROOT_DIR = os.path.dirname(__file__)
 WORD_SET = set()
 LETTER_DICT = {
@@ -71,14 +72,14 @@ LETTER_DICT = {
     "ż": "3",
 }
 
-system_log("INIT", "Loading WORD_SET from file 'slowa.txt'...")
+system_log("INIT", f"Loading WORD_SET from file '{DICT_FILE}'...")
 
 # try:
-#     with open(os.path.join(ROOT_DIR, "slowa.txt")) as wfile:
+#     with open(os.path.join(ROOT_DIR, DICT_FILE)) as wfile:
 #         for line in wfile:
 #             WORD_SET.add(line.rstrip())
 # except FileNotFoundError:
-#     system_log("ERR", "Failed to load WORD_SET, file 'slowa.txt' is missing")
+#     system_log("ERR", f"Failed to load WORD_SET, file '{DICT_FILE}' is missing")
 #     sys.exit(1)
 
 system_log("INIT", f"Finished loading WORD_SET with {len(WORD_SET)} words")
@@ -89,13 +90,13 @@ system_log("INIT", f"Finished loading WORD_SET with {len(WORD_SET)} words")
 # ==================== #
 config = configparser.ConfigParser()
 
-system_log("INIT", "Loading config data from file 'config.ini'...")
+system_log("INIT", f"Loading config data from file '{CONF_FILE}'...")
 
 try:
-    with open(os.path.join(ROOT_DIR, "config.ini")) as cfile:
+    with open(os.path.join(ROOT_DIR, CONF_FILE)) as cfile:
         config.read_file(cfile)
 except IOError:
-    system_log("ERR", "Failed to load configuration, file 'config.ini' is missing")
+    system_log("ERR", f"Failed to load configuration, file '{CONF_FILE}' is missing")
     sys.exit(2)
 
 # ============================= #
@@ -125,34 +126,34 @@ system_log("INIT", "Finished loading configuration from file")
 #  Init bazy danych  #
 # ================== #
 system_log("INIT", "Starting database connection...")
-con = sqlite3.connect(os.path.join(ROOT_DIR, "wordgame.db"))
-cur = con.cursor()
-# cur.execute("insert into users values (?, ?)", ('test00', hashlib.sha1("qq".encode("utf-8")).hexdigest()))
-# con.commit()
+DB_CON = sqlite3.connect(os.path.join(ROOT_DIR, DB_FILE))
+DB_CUR = DB_CON.cursor()
+# DB_CUR.execute("insert into users values (?, ?)", ('test00', hashlib.sha1("qq".encode("utf-8")).hexdigest()))
+# DB_CON.commit()
 
-# cur.execute("SELECT * FROM users")
-# print(cur.fetchall())
+# DB_CUR.execute("SELECT * FROM users")
+# print(DB_CUR.fetchall())
 
-# con.close()
-system_log("INIT", "Connected to database file 'wordgame.db'")
+# DB_CON.close()
+system_log("INIT", f"Connected to database file '{DB_FILE}'")
 
 
 # ================== #
 #  Init socketa TCP  #
 # ================== #
 system_log("INIT", "Initiating listen socket...")
-srv_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-srv_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-srv_socket.bind((IP, PORT))
-srv_socket.listen()
-srv_socket.setblocking(False)
+SRV_SOCKET = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+SRV_SOCKET.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+SRV_SOCKET.bind((IP, PORT))
+SRV_SOCKET.listen()
+SRV_SOCKET.setblocking(False)
 system_log("INIT", f"Listening for connections on {IP}:{PORT}")
 
 
 # ========================== #
 #  Init zmiennych roboczych  #
 # ========================== #
-sockets_list = [srv_socket]
+sockets_list = [SRV_SOCKET]
 clients = {}
 game_queue = []
 game_thread_list = []
@@ -172,6 +173,64 @@ def f_queue():
             time_passed >= QUEUE_TIMEOUT and len(game["players"].keys()) >= MIN_PLAYERS
         ):
             start_game(game)
+
+
+def f_login(client_socket, client_address):
+    system_log(
+        "INFO",
+        f"Connection attempt from {client_address[0]}:{client_address[1]}...",
+    )
+
+    try:
+        id_num = client_socket.recv(1024)
+
+        if not len(id_num):
+            return None
+
+        id_num = id_num.decode("utf-8").rstrip()
+
+        passwd = client_socket.recv(1024)
+
+        if not len(passwd):
+            return None
+
+        passwd = passwd.decode("utf-8").rstrip()
+
+        if is_duped(id_num):
+            system_log(
+                "INFO",
+                f"Connection from {client_address[0]}:{client_address[1]} failed: \u001b[31mDUPLICATE LOGIN\u001b[0m",
+            )
+
+            client_socket.send("-\n".encode("utf-8"))
+            client_socket.close()
+
+            return None
+
+        if not auth_user(id_num, passwd):
+            system_log(
+                "INFO",
+                f"Connection from {client_address[0]}:{client_address[1]} failed: \u001b[31mBAD AUTH\u001b[0m",
+            )
+
+            client_socket.send("-\n".encode("utf-8"))
+            client_socket.close()
+
+            return None
+
+        user = {"uid": id_num, "address": client_address, "queued": False}
+    except:
+        return None
+
+    system_log(
+        "INFO",
+        f"Connection from {client_address[0]}:{client_address[1]} successful (uid: {user['uid']})",
+    )
+
+    client_socket.send("+\n".encode("utf-8"))
+
+    sockets_list.append(client_socket)
+    clients[client_socket] = user
 
 
 def f_game():
@@ -209,37 +268,28 @@ def letters_to_numvals(word):
 #  Funkcje dołączania  #
 # ==================== #
 def handle_login(client_socket, client_address):
-    try:
-        id_num = client_socket.recv(1024)
+    t_login = ThreadHandler(f_login, client_socket, client_address)
+    t_login.start()
 
-        if not len(id_num):
-            return False
 
-        id_num = id_num.decode("utf-8").rstrip()
-
-        passwd = client_socket.recv(1024)
-
-        if not len(passwd):
-            return False
-        passwd = passwd.decode("utf-8").rstrip()
-
-        return {
-            "id_num": id_num,
-            "auth": auth_user(id_num, passwd),
-            "address": client_address,
-        }
-
-    except:
-        return False
+def is_duped(num):
+    for user in clients.values():
+        if num == user["uid"]:
+            return True
+    return False
 
 
 def auth_user(num, pas):
+    con = sqlite3.connect(os.path.join(ROOT_DIR, DB_FILE))
+    cur = con.cursor()
     phash = hashlib.sha1(pas.encode("utf-8")).hexdigest()
     cur.execute("SELECT * from users WHERE id_number = ? AND hash = ?", (num, phash))
 
     if len(cur.fetchall()):
+        con.close()
         return True
 
+    con.close()
     return False
 
 
@@ -279,73 +329,45 @@ while True:
     )
 
     for notified_socket in read_sockets:
-        if notified_socket == srv_socket:
-            client_socket, client_address = srv_socket.accept()
+        if notified_socket == SRV_SOCKET:
+            client_socket, client_address = SRV_SOCKET.accept()
 
-            system_log(
-                "INFO",
-                f"Connection attempt from {client_address[0]}:{client_address[1]}...",
-            )
-
-            user = handle_login(client_socket, client_address)
-
-            if user is False:
-                continue
+            handle_login(client_socket, client_address)
 
             # sockets_list.append(client_socket)
             # clients[client_socket] = user
 
-            if not user["auth"]:
-                system_log(
-                    "INFO",
-                    f"Connection from {client_address[0]}:{client_address[1]} failed: \u001b[31mBAD AUTH\u001b[0m",
-                )
-
-                client_socket.send("-\n".encode("utf-8"))
-                client_socket.close()
-
-                continue
-
-            system_log(
-                "INFO",
-                f"Connection from {client_address[0]}:{client_address[1]} successful (uid: {user['id_num']})",
-            )
-            client_socket.send("+\n".encode("utf-8"))
-
             # TU JAKOŚ ZAPISAĆ KLIENTA
-            sockets_list.append(client_socket)
-            clients[client_socket] = user
+            # if len(game_queue) == 0:
+            #     new_game = {"timer_start": int(time.time()), "players": {}}
+            #     game_queue.append(new_game)
+            #     system_log(
+            #         "INFO", f"Created New Game with ID: {new_game['timer_start']}"
+            #     )
 
-            if len(game_queue) == 0:
-                new_game = {"timer_start": int(time.time()), "players": {}}
-                game_queue.append(new_game)
-                system_log(
-                    "INFO", f"Created New Game with ID: {new_game['timer_start']}"
-                )
+            # if len(game_queue[-1]["players"].keys()) == MAX_PLAYERS:
+            #     new_game = {"timer_start": int(time.time()), "players": {}}
+            #     game_queue.append(new_game)
+            #     system_log(
+            #         "INFO", f"Created New Game with ID: {new_game['timer_start']}"
+            #     )
 
-            if len(game_queue[-1]["players"].keys()) == MAX_PLAYERS:
-                new_game = {"timer_start": int(time.time()), "players": {}}
-                game_queue.append(new_game)
-                system_log(
-                    "INFO", f"Created New Game with ID: {new_game['timer_start']}"
-                )
-
-            last_game = game_queue[-1]
-            game_queue[-1]["players"][client_socket] = user
-            system_log(
-                "INFO",
-                f"Added player (id: {user['id_num']}) to queued game (id: {new_game['timer_start']})",
-            )
-            for key, val in last_game["players"].items():
-                print(val["id_num"])
+            # last_game = game_queue[-1]
+            # game_queue[-1]["players"][client_socket] = user
+            # system_log(
+            #     "INFO",
+            #     f"Added player (id: {user['uid']}) to queued game (id: {new_game['timer_start']})",
+            # )
+            # for key, val in last_game["players"].items():
+            #     print(val["id_num"])
 
         else:
             msg = rcv_msg(notified_socket)
 
             if msg is False:
                 system_log(
-                    "INIT",
-                    f"Closed connection from: {clients[notified_socket]['id_num']}",
+                    "INFO",
+                    f"Closed connection from: {clients[notified_socket]['uid']}",
                 )
                 sockets_list.remove(notified_socket)
                 del clients[notified_socket]
@@ -353,7 +375,7 @@ while True:
 
             user = clients[notified_socket]
 
-            print(f'Received message from {user["id_num"]}: {repr(msg)}')
+            print(f'Received message from {user["uid"]}: {repr(msg)}')
 
             if msg.rstrip() in WORD_SET:
                 print(f"{msg.rstrip()} in wordset")
@@ -362,7 +384,7 @@ while True:
                 print(f"{msg.rstrip()} not in wordset")
 
             print(letters_to_numvals(msg.rstrip()))
-            print('')
+            print("")
 
     for notified_socket in exception_sockets:
         sockets_list.remove(notified_socket)
