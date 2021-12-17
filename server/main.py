@@ -75,15 +75,15 @@ LETTER_DICT = {
 
 system_log("INIT", f"Loading WORD_SET from file '{DICT_FILE}'...")
 
-# try:
-#     with open(os.path.join(ROOT_DIR, DICT_FILE)) as wfile:
-#         for line in wfile:
-#             WORD_SET.add(line.rstrip())
-# except FileNotFoundError:
-#     system_log("ERR", f"Failed to load WORD_SET, file '{DICT_FILE}' is missing")
-#     sys.exit(1)
+try:
+    with open(os.path.join(ROOT_DIR, DICT_FILE)) as wfile:
+        for line in wfile:
+            WORD_SET.add(line.rstrip())
+except FileNotFoundError:
+    system_log("ERR", f"Failed to load WORD_SET, file '{DICT_FILE}' is missing")
+    sys.exit(1)
 
-WORD_SET.add("długonoga")
+# WORD_SET.add("długonoga")
 
 system_log("INIT", f"Finished loading WORD_SET with {len(WORD_SET)} words")
 
@@ -162,7 +162,6 @@ sockets_list = [SRV_SOCKET]
 clients = {}
 game_queue = []
 sockets_to_purge = []
-game_thread_list = []
 
 
 # ================ #
@@ -203,11 +202,6 @@ def f_queue():
             client["queued"] = True
 
     for game in game_queue:
-        # print(f"game {game['time_queued']}:")
-        # for player in game["players"].values():
-        #     print(f"player: {player['uid']}")
-        # print("")
-
         time_passed = int(time.time() - game["time_queued"])
 
         if len(game["players"].keys()) == MAX_PLAYERS:
@@ -268,6 +262,7 @@ def f_login(client_socket, client_address):
             "queued": False,
             "ingame": False,
             "points": 0,
+            "guesses": [],
         }
     except:
         return None
@@ -279,7 +274,6 @@ def f_login(client_socket, client_address):
 
     client_socket.send("+\n".encode("utf-8"))
 
-    # sockets_list.append(client_socket)
     clients[client_socket] = user
 
 
@@ -288,7 +282,6 @@ def f_game(gd):
     gd["word"] = None
     for player in gd["players"].values():
         player["ingame"] = True
-        # print(f"player: {player['uid']}")
 
     while gd["word"] == None:
         if not len(gd["players"].values()):
@@ -349,8 +342,16 @@ def f_game(gd):
         if just_end:
             break
 
-    print(gd["ended"])
-    print(f"Am Pomu")
+    if gd["ended"]:
+        system_log(
+            "GAME",
+            f"Game finished (id: {gd['time_queued']}) with a correct guess",
+        )
+    else:
+        system_log(
+            "GAME",
+            f"Game finished (id: {gd['time_queued']}) with no correct guess",
+        )
 
 
 def f_player(gd, sock):
@@ -372,6 +373,7 @@ def f_player(gd, sock):
             del gd["players"][sock]
             del clients[sock]
             return None
+
         else:
             if time.time() - time_pre > GUESS_MISS_TIMEOUT:
                 system_log(
@@ -379,6 +381,8 @@ def f_player(gd, sock):
                     f"Reply from {gd['players'][sock]['uid']} took too long... Ignoring...",
                 )
                 sock.send("#\n".encode("utf-8"))
+                return None
+
             else:
                 cmd = sock.recv(1024).decode("utf-8").rstrip()
 
@@ -394,8 +398,8 @@ def f_player(gd, sock):
                     del gd["players"][sock]
                     del clients[sock]
                     return None
-                else:
-                    guess = sock.recv(1024).decode("utf-8").rstrip()
+
+                guess = sock.recv(1024).decode("utf-8").rstrip()
 
                 if cmd == "=":
                     if guess == gd["word"]:
@@ -420,9 +424,49 @@ def f_player(gd, sock):
                         del gd["players"][sock]
                         del clients[sock]
                         return None
+
                     else:
                         sock.send("!\n".encode("utf-8"))
-                # elif cmd == '+':
+
+                elif cmd == "+":
+                    if len(guess) == 1:
+                        if not guess in gd["players"][sock]["guesses"]:
+                            hit_count = gd["word"].count(guess)
+                            gd["players"][sock]["guesses"].append(guess)
+
+                            if hit_count == 0:
+                                sock.send("!\n".encode("utf-8"))
+                            else:
+                                gd["players"][sock]["points"] += hit_count
+                                system_log(
+                                    "GAME",
+                                    f"Player {gd['players'][sock]['uid']} guessed a letter!",
+                                )
+                                sock.send("=\n".encode("utf-8"))
+                                time.sleep(0.05)
+                                sock.send(
+                                    f"{pos_in_word(gd['word'], guess)}\n".encode(
+                                        "utf-8"
+                                    )
+                                )
+                        else:
+                            system_log(
+                                "GAME",
+                                f"Player {gd['players'][sock]['uid']} guessed the same letter again! Nope, won't work!",
+                            )
+                            sock.send("!\n".encode("utf-8"))
+
+                    else:
+                        system_log(
+                            "GAME",
+                            f"Player {gd['players'][sock]['uid']} submitted a malformed guess... Kicking...",
+                        )
+                        sock.close()
+                        sockets_to_purge.append(sock)
+                        del gd["players"][sock]
+                        del clients[sock]
+                        return None
+
                 else:
                     system_log(
                         "GAME",
@@ -449,17 +493,15 @@ def f_player(gd, sock):
 # =============================== #
 def start_game(game_info):
     system_log("GAME", f"Starting GAME (id: {game_info['time_queued']})")
-    test_game = GameHandler(f_game, game_info)
-    game_thread_list.append(test_game)
-
-    test_game.start()
+    t_game = GameHandler(f_game, game_info)
+    t_game.start()
 
     game_queue.remove(game_info)
 
 
-# ================================ #
-#  Funkcja rozbicia na kody liter  #
-# ================================ #
+# ============================= #
+#  Funkcje pomocnicze do liter  #
+# ============================= #
 def let_to_num(word):
     letter_string = ""
     for letter in word.rstrip():
@@ -468,6 +510,19 @@ def let_to_num(word):
     letter_string += "\n"
 
     return letter_string
+
+
+def pos_in_word(word, letter):
+    pos_string = ""
+    for let in word.rstrip():
+        if let == letter:
+            pos_string += "1"
+        else:
+            pos_string += "0"
+
+    pos_string += "\n"
+
+    return pos_string
 
 
 # ==================== #
