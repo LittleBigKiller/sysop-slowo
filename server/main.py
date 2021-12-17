@@ -114,8 +114,6 @@ try:
     GUESS_KICK_TIMEOUT = int(config["GAME"]["GUESS_KICK_TIMEOUT"])
 
     QUEUE_THREAD_TIME = float(config["TIMING"]["QUEUE_THREAD_TIME"])
-    GAME_THREAD_TIME = float(config["TIMING"]["GAME_THREAD_TIME"])
-    GAME_THREAD_TIME = float(config["TIMING"]["GAME_THREAD_TIME"])
 except KeyError:
     system_log("ERR", "Failed to load values from configuration file, check integrity")
     sys.exit(2)
@@ -166,12 +164,12 @@ game_thread_list = []
 def f_queue():
     for socket in sockets_to_purge:
         for game in game_queue:
-            if socket in game['players'].keys():
-                del game['players'][socket]
+            if socket in game["players"].keys():
+                del game["players"][socket]
                 sockets_to_purge.remove(socket)
 
     for socket, client in clients.items():
-        if not client['queued']:
+        if not client["queued"]:
             if len(game_queue) == 0:
                 new_game = {"time_queued": int(time.time()), "players": {}}
                 game_queue.append(new_game)
@@ -192,8 +190,8 @@ def f_queue():
                 "INFO",
                 f"Added player (id: {client['uid']}) to queued game (id: {last_game['time_queued']})",
             )
-            client['queued'] = True
-    
+            client["queued"] = True
+
     for game in game_queue:
         # print(f"game {game['time_queued']}:")
         # for player in game['players'].values():
@@ -235,7 +233,7 @@ def f_login(client_socket, client_address):
         if is_duped(id_num):
             system_log(
                 "INFO",
-                f"Connection from {client_address[0]}:{client_address[1]} failed: \u001b[31mDUPLICATE LOGIN\u001b[0m",
+                f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: DUPLICATE LOGIN\u001b[0m",
             )
 
             client_socket.send("-\n".encode("utf-8"))
@@ -246,7 +244,7 @@ def f_login(client_socket, client_address):
         if not auth_user(id_num, passwd):
             system_log(
                 "INFO",
-                f"Connection from {client_address[0]}:{client_address[1]} failed: \u001b[31mBAD AUTH\u001b[0m",
+                f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: BAD AUTH\u001b[0m",
             )
 
             client_socket.send("-\n".encode("utf-8"))
@@ -283,9 +281,8 @@ def f_game():
 # =============================== #
 def start_game(game_info):
     system_log("INIT", f"Starting GAME (id: {game_info['time_queued']})")
-    stop_game = threading.Event()
-    test_game = GameHandler(stop_game, f_game, game_info, GAME_THREAD_TIME)
-    game_thread_list.append({"event": stop_game, "thread": test_game})
+    test_game = GameHandler(f_game, game_info)
+    game_thread_list.append(test_game)
 
     test_game.start()
 
@@ -309,7 +306,7 @@ def let_to_num(word):
 #  Funkcje dołączania  #
 # ==================== #
 def handle_login(client_socket, client_address):
-    t_login = ThreadHandler(f_login, client_socket, client_address)
+    t_login = LoginHandler(f_login, client_socket, client_address)
     t_login.start()
 
 

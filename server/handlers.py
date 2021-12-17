@@ -1,6 +1,7 @@
 import time
 from threading import Thread, Event
 
+
 class QueueHandler(Thread):
     def __init__(self, event, function, int_time):
         Thread.__init__(self, daemon=True)
@@ -13,7 +14,7 @@ class QueueHandler(Thread):
             self.func()
 
 
-class ThreadHandler(Thread):
+class LoginHandler(Thread):
     def __init__(self, func, sock, addr):
         Thread.__init__(self, daemon=True)
         self.func = func
@@ -25,24 +26,11 @@ class ThreadHandler(Thread):
 
 
 class GameHandler(Thread):
-    def __init__(self, event, function, game_dict, int_time):
+    def __init__(self, function, game_dict):
         Thread.__init__(self, daemon=True)
-        self.stop_ev = event
         self.func = function
-        self.t = int_time
+        self.gd = game_dict
 
     def run(self):
-        while not self.stop_ev.wait(self.t):
-            self.func()
-
-
-class LoginHandler(Thread):
-    def __init__(self, event, function, game_dict, int_time):
-        Thread.__init__(self, daemon=True)
-        self.stop_ev = event
-        self.func = function
-        self.t = int_time
-
-    def run(self):
-        while not self.stop_ev.wait(self.t):
-            self.func()
+        self.func()
+        print(f"Game {self.gd['time_queued']} ended")
