@@ -33,3 +33,14 @@ class GameHandler(Thread):
 
     def run(self):
         self.func(self.gd)
+
+
+class PlayerInGameHandler(Thread):
+    def __init__(self, function, game_dict, player_socket):
+        Thread.__init__(self, daemon=True)
+        self.func = function
+        self.gd = game_dict
+        self.sock = player_socket
+
+    def run(self):
+        self.func(self.gd, self.sock)

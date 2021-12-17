@@ -101,6 +101,9 @@ try:
 except IOError:
     system_log("ERR", f"Failed to load configuration, file '{CONF_FILE}' is missing")
     sys.exit(2)
+except configparser.ParsingError:
+    system_log("ERR", "Failed to parse configuration file, check integrity")
+    sys.exit(3)
 
 # ============================= #
 #  Wczytanie stałych z configa  #
@@ -115,12 +118,13 @@ try:
     WORD_TIMEOUT = int(config["GAME"]["WORD_TIMEOUT"])
     GUESS_MISS_TIMEOUT = int(config["GAME"]["GUESS_MISS_TIMEOUT"])
     GUESS_KICK_TIMEOUT = int(config["GAME"]["GUESS_KICK_TIMEOUT"])
+    MAX_GUESS_COUNT = int(config["GAME"]["MAX_GUESS_COUNT"])
 
     QUEUE_THREAD_TIME = float(config["TIMING"]["QUEUE_THREAD_TIME"])
     SELECT_TIMEOUT = float(config["TIMING"]["SELECT_TIMEOUT"])
 except KeyError:
     system_log("ERR", "Failed to load values from configuration file, check integrity")
-    sys.exit(2)
+    sys.exit(3)
 
 system_log("INIT", "Finished loading configuration from file")
 
@@ -318,12 +322,126 @@ def f_game(gd):
                 system_log("GAME", f"Word successfully chosen as {word}")
                 gd["word"] = word
                 num_str = let_to_num(word)
-                system_log("GAME", f"Broadcasting number-string {repr(num_str)} to players")
-                for socket in gd['players']:
+                system_log(
+                    "GAME", f"Broadcasting number-string {repr(num_str)} to players"
+                )
+                for socket in gd["players"].keys():
                     if not socket == wordsmith:
                         socket.send(let_to_num(word).encode("utf-8"))
+                system_log("GAME", f"Kicking the wordsmith because... Kicking...")
+                wordsmith.close()
+                sockets_to_purge.append(wordsmith)
+                del gd["players"][wordsmith]
+                del clients[wordsmith]
 
+    psocket = []
+    for socket, player in gd["players"].items():
+        t_player = PlayerInGameHandler(f_player, gd, socket)
+        psocket.append(socket)
+        t_player.start()
+
+    while not gd["ended"]:
+        just_end = True
+        for socket in psocket:
+            if socket.fileno() != -1:
+                just_end = False
+
+        if just_end:
+            break
+
+    print(gd["ended"])
     print(f"Am Pomu")
+
+
+def f_player(gd, sock):
+    try_ctr = 0
+
+    while try_ctr < MAX_GUESS_COUNT:
+        try_ctr += 1
+        time_pre = time.time()
+        rs, _, _ = select.select([sock], [], [], GUESS_KICK_TIMEOUT)
+
+        if not rs:
+            system_log(
+                "GAME",
+                f"No reply from {gd['players'][sock]['uid']} in allotted time... Kicking...",
+            )
+
+            sock.close()
+            sockets_to_purge.append(sock)
+            del gd["players"][sock]
+            del clients[sock]
+            return None
+        else:
+            if time.time() - time_pre > GUESS_MISS_TIMEOUT:
+                system_log(
+                    "GAME",
+                    f"Reply from {gd['players'][sock]['uid']} took too long... Ignoring...",
+                )
+                sock.send("#\n".encode("utf-8"))
+            else:
+                cmd = sock.recv(1024).decode("utf-8").rstrip()
+
+                rs, _, _ = select.select([sock], [], [], GUESS_KICK_TIMEOUT)
+
+                if not rs:
+                    system_log(
+                        "GAME",
+                        f"Player {gd['players'][sock]['uid']} submitted a malformed guess... Kicking...",
+                    )
+                    sock.close()
+                    sockets_to_purge.append(sock)
+                    del gd["players"][sock]
+                    del clients[sock]
+                    return None
+                else:
+                    guess = sock.recv(1024).decode("utf-8").rstrip()
+
+                if cmd == "=":
+                    if guess == gd["word"]:
+                        gd["ended"] = True
+                        gd["players"][sock]["points"] += 5
+                        system_log(
+                            "GAME",
+                            f"Player {gd['players'][sock]['uid']} guessed the word!",
+                        )
+                        sock.send("=\n".encode("utf-8"))
+                        time.sleep(0.05)
+                        sock.send(f"{gd['players'][sock]['points']}\n".encode("utf-8"))
+                        time.sleep(0.05)
+                        sock.send("?\n".encode("utf-8"))
+                        time.sleep(0.05)
+                        system_log(
+                            "GAME",
+                            f"Player {gd['players'][sock]['uid']} achieved a total of {gd['players'][sock]['points']} points!",
+                        )
+                        sock.close()
+                        sockets_to_purge.append(sock)
+                        del gd["players"][sock]
+                        del clients[sock]
+                        return None
+                    else:
+                        sock.send("!\n".encode("utf-8"))
+                # elif cmd == '+':
+                else:
+                    system_log(
+                        "GAME",
+                        f"Player {gd['players'][sock]['uid']} submitted a malformed guess... Kicking...",
+                    )
+                    sock.close()
+                    sockets_to_purge.append(sock)
+                    del gd["players"][sock]
+                    del clients[sock]
+                    return None
+
+    system_log(
+        "GAME",
+        f"Player {gd['players'][sock]['uid']} ran out of guesses... Kicking...",
+    )
+    sock.close()
+    sockets_to_purge.append(sock)
+    del gd["players"][sock]
+    del clients[sock]
 
 
 # =============================== #
