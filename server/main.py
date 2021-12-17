@@ -156,6 +156,7 @@ system_log("INIT", f"Listening for connections on {IP}:{PORT}")
 sockets_list = [SRV_SOCKET]
 clients = {}
 game_queue = []
+sockets_to_purge = []
 game_thread_list = []
 
 
@@ -163,8 +164,43 @@ game_thread_list = []
 #  Funkcje wątków  #
 # ================ #
 def f_queue():
-    for game in reversed(game_queue):
-        time_passed = int(time.time()) - game["timer_start"]
+    for socket in sockets_to_purge:
+        for game in game_queue:
+            if socket in game['players'].keys():
+                del game['players'][socket]
+                sockets_to_purge.remove(socket)
+
+    for socket, client in clients.items():
+        if not client['queued']:
+            if len(game_queue) == 0:
+                new_game = {"time_queued": int(time.time()), "players": {}}
+                game_queue.append(new_game)
+                system_log(
+                    "INFO", f"Created New Game with ID: {new_game['time_queued']}"
+                )
+
+            if len(game_queue[-1]["players"].keys()) == MAX_PLAYERS:
+                new_game = {"time_queued": int(time.time()), "players": {}}
+                game_queue.append(new_game)
+                system_log(
+                    "INFO", f"Created New Game with ID: {new_game['time_queued']}"
+                )
+
+            last_game = game_queue[-1]
+            game_queue[-1]["players"][client_socket] = client
+            system_log(
+                "INFO",
+                f"Added player (id: {client['uid']}) to queued game (id: {last_game['time_queued']})",
+            )
+            client['queued'] = True
+    
+    for game in game_queue:
+        # print(f"game {game['time_queued']}:")
+        # for player in game['players'].values():
+        #     print(f"player: {player['uid']}")
+        # print('')
+
+        time_passed = int(time.time()) - game["time_queued"]
 
         if len(game["players"].keys()) == MAX_PLAYERS:
             start_game(game)
@@ -218,7 +254,12 @@ def f_login(client_socket, client_address):
 
             return None
 
-        user = {"uid": id_num, "address": client_address, "queued": False}
+        user = {
+            "uid": id_num,
+            "address": client_address,
+            "queued": False,
+            "ingame": False,
+        }
     except:
         return None
 
@@ -241,7 +282,7 @@ def f_game():
 #  Funkcja rozpoczęcia sesji gry  #
 # =============================== #
 def start_game(game_info):
-    system_log("INIT", f"Starting GAME (id: {game_info['timer_start']})")
+    system_log("INIT", f"Starting GAME (id: {game_info['time_queued']})")
     stop_game = threading.Event()
     test_game = GameHandler(stop_game, f_game, game_info, GAME_THREAD_TIME)
     game_thread_list.append({"event": stop_game, "thread": test_game})
@@ -254,7 +295,7 @@ def start_game(game_info):
 # ================================ #
 #  Funkcja rozbicia na kody liter  #
 # ================================ #
-def letters_to_numvals(word):
+def let_to_num(word):
     letter_string = ""
     for letter in word.rstrip():
         letter_string += LETTER_DICT[letter]
@@ -334,33 +375,6 @@ while True:
 
             handle_login(client_socket, client_address)
 
-            # sockets_list.append(client_socket)
-            # clients[client_socket] = user
-
-            # TU JAKOŚ ZAPISAĆ KLIENTA
-            # if len(game_queue) == 0:
-            #     new_game = {"timer_start": int(time.time()), "players": {}}
-            #     game_queue.append(new_game)
-            #     system_log(
-            #         "INFO", f"Created New Game with ID: {new_game['timer_start']}"
-            #     )
-
-            # if len(game_queue[-1]["players"].keys()) == MAX_PLAYERS:
-            #     new_game = {"timer_start": int(time.time()), "players": {}}
-            #     game_queue.append(new_game)
-            #     system_log(
-            #         "INFO", f"Created New Game with ID: {new_game['timer_start']}"
-            #     )
-
-            # last_game = game_queue[-1]
-            # game_queue[-1]["players"][client_socket] = user
-            # system_log(
-            #     "INFO",
-            #     f"Added player (id: {user['uid']}) to queued game (id: {new_game['timer_start']})",
-            # )
-            # for key, val in last_game["players"].items():
-            #     print(val["id_num"])
-
         else:
             msg = rcv_msg(notified_socket)
 
@@ -369,6 +383,7 @@ while True:
                     "INFO",
                     f"Closed connection from: {clients[notified_socket]['uid']}",
                 )
+                sockets_to_purge.append(notified_socket)
                 sockets_list.remove(notified_socket)
                 del clients[notified_socket]
                 continue
@@ -383,7 +398,7 @@ while True:
             else:
                 print(f"{msg.rstrip()} not in wordset")
 
-            print(letters_to_numvals(msg.rstrip()))
+            print(let_to_num(msg.rstrip()))
             print("")
 
     for notified_socket in exception_sockets:
