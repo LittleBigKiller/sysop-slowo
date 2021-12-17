@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import socket
 import select
 import configparser
@@ -57,19 +58,132 @@ while True:
                 print(repr(word))
                 print('==========================')
                 cli_socket.send(word.encode('utf-8'))
+
             elif rcv.rstrip() == "331211121":
+                word = "+\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+                word = "d\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+
+            elif rcv.rstrip() == "100000000":
+                word = "+\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+                word = "g\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+                
+            elif rcv.rstrip() == "000100010":
+                word = "+\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+                word = "o\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+
+            elif rcv.rstrip() == "000010100":
+                word = "+\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+                word = "n\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+
+            elif rcv.rstrip() == "000001000":
+                word = "+\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+                word = "u\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+
+            elif rcv.rstrip() == "001000000":
+                word = "+\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+                word = "ł\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+
+            elif rcv.rstrip() == "010000000":
+                word = "+\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
+                word = "x\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+
+            elif rcv.rstrip() == "!":
                 word = "=\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
                 print(repr(word))
                 print('==========================')
                 cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
                 word = "długonoga\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
                 print(repr(word))
                 print('==========================')
                 cli_socket.send(word.encode('utf-8'))
+                time.sleep(0.05)
 
 
         else:
