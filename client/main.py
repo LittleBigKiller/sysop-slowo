@@ -18,8 +18,6 @@ my_password = config["CREDENTIALS"]["PASSWORD"]  # input("Username: ")
 cli_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 cli_socket.connect((IP, PORT))
 
-# cli_socket.setblocking(False)
-
 # username = (my_username + "\n").encode("utf-8")
 # password = (my_password + "\n").encode("utf-8")
 
@@ -30,17 +28,6 @@ cli_socket.connect((IP, PORT))
 # auth_resp = cli_socket.recv(1024)
 
 # print(auth_resp.decode('utf-8').rstrip())
-
-words = [
-    "rozpamiętywany",
-    "rozpamiętywanym",
-    "rozpamiętywań",
-    "rozpamiętywasz",
-    "rozpanosz",
-    "rozpanoszą",
-    "rozpanoszcie",
-    "rozpanoszcież",
-]
 
 sockets_list = [sys.stdin, cli_socket]
 
@@ -64,6 +51,19 @@ while True:
             print('==========================')
 
             if rcv.rstrip() == "@":
+                word = "długonoga\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+            elif rcv.rstrip() == "331211121":
+                word = "=\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
                 word = "długonoga\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
