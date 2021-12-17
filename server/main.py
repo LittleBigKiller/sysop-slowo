@@ -165,6 +165,10 @@ def f_queue():
     for socket in sockets_to_purge:
         for game in game_queue:
             if socket in game["players"].keys():
+                system_log(
+                    "ERR",
+                    f"Purging {game['players'][socket]['uid']}"
+                )
                 del game["players"][socket]
                 sockets_to_purge.remove(socket)
 
@@ -177,15 +181,17 @@ def f_queue():
                     "INFO", f"Created New Game with ID: {new_game['time_queued']}"
                 )
 
-            if len(game_queue[-1]["players"].keys()) == MAX_PLAYERS:
+            last_game = game_queue[-1]
+
+            if len(last_game["players"].keys()) == MAX_PLAYERS:
                 new_game = {"time_queued": int(time.time()), "players": {}}
                 game_queue.append(new_game)
                 system_log(
                     "INFO", f"Created New Game with ID: {new_game['time_queued']}"
                 )
+                last_game = new_game
 
-            last_game = game_queue[-1]
-            game_queue[-1]["players"][client_socket] = client
+            last_game["players"][socket] = client
             system_log(
                 "INFO",
                 f"Added player (id: {client['uid']}) to queued game (id: {last_game['time_queued']})",
@@ -194,11 +200,11 @@ def f_queue():
 
     for game in game_queue:
         # print(f"game {game['time_queued']}:")
-        # for player in game['players'].values():
+        # for player in game["players"].values():
         #     print(f"player: {player['uid']}")
-        # print('')
+        # print("")
 
-        time_passed = int(time.time()) - game["time_queued"]
+        time_passed = int(time.time() - game["time_queued"])
 
         if len(game["players"].keys()) == MAX_PLAYERS:
             start_game(game)
@@ -272,7 +278,8 @@ def f_login(client_socket, client_address):
     clients[client_socket] = user
 
 
-def f_game():
+def f_game(gd):
+    print(len(gd["players"]))
     print(f"Am Pomu")
 
 
@@ -280,7 +287,7 @@ def f_game():
 #  Funkcja rozpoczęcia sesji gry  #
 # =============================== #
 def start_game(game_info):
-    system_log("INIT", f"Starting GAME (id: {game_info['time_queued']})")
+    system_log("INFO", f"Starting GAME (id: {game_info['time_queued']})")
     test_game = GameHandler(f_game, game_info)
     game_thread_list.append(test_game)
 
@@ -395,8 +402,7 @@ while True:
             else:
                 print(f"{msg.rstrip()} not in wordset")
 
-            print(let_to_num(msg.rstrip()))
-            print("")
+            print(repr(let_to_num(msg.rstrip())))
 
     for notified_socket in exception_sockets:
         sockets_list.remove(notified_socket)

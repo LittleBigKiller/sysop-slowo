@@ -32,5 +32,4 @@ class GameHandler(Thread):
         self.gd = game_dict
 
     def run(self):
-        self.func()
-        print(f"Game {self.gd['time_queued']} ended")
+        self.func(self.gd)
