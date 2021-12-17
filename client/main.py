@@ -49,19 +49,28 @@ while True:
 
     for sock in read_sockets:
         if sock == cli_socket:
-            rcv = sock.recv(1024)
+            rcv = sock.recv(1024).decode("utf-8")
 
             if not len(rcv):
-                print('===========RECV===========')
+                print('===========DEAD===========')
                 print('Connection closed by the server?')
                 print('==========================')
 
                 sys.exit()
 
             print('===========RECV===========')
-            print(rcv.decode("utf-8").rstrip())
-            print(repr(rcv.decode("utf-8")))
+            print(rcv.rstrip())
+            print(repr(rcv))
             print('==========================')
+
+            if rcv.rstrip() == "@":
+                word = "długonoga\n"
+                print('===========AUTO===========')
+                print(word.rstrip())
+                print(repr(word))
+                print('==========================')
+                cli_socket.send(word.encode('utf-8'))
+
 
         else:
             mess = sys.stdin.readline().rstrip() + '\n'
