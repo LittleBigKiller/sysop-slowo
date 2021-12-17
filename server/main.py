@@ -18,6 +18,7 @@ def system_log(prefix, message):
         "ERR": "\u001b[31;1m",
         "INIT": "\u001b[32;1m",
         "INFO": "\u001b[33;1m",
+        "GAME": "\u001b[34;1m",
         "reset": "\u001b[0m",
     }
     cprefix = f"{color_codes[prefix]}{prefix}{color_codes['reset']}"
@@ -82,6 +83,8 @@ system_log("INIT", f"Loading WORD_SET from file '{DICT_FILE}'...")
 #     system_log("ERR", f"Failed to load WORD_SET, file '{DICT_FILE}' is missing")
 #     sys.exit(1)
 
+WORD_SET.add("długonoga")
+
 system_log("INIT", f"Finished loading WORD_SET with {len(WORD_SET)} words")
 
 
@@ -114,6 +117,7 @@ try:
     GUESS_KICK_TIMEOUT = int(config["GAME"]["GUESS_KICK_TIMEOUT"])
 
     QUEUE_THREAD_TIME = float(config["TIMING"]["QUEUE_THREAD_TIME"])
+    SELECT_TIMEOUT = float(config["TIMING"]["SELECT_TIMEOUT"])
 except KeyError:
     system_log("ERR", "Failed to load values from configuration file, check integrity")
     sys.exit(2)
@@ -144,7 +148,6 @@ SRV_SOCKET = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 SRV_SOCKET.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 SRV_SOCKET.bind((IP, PORT))
 SRV_SOCKET.listen()
-SRV_SOCKET.setblocking(False)
 system_log("INIT", f"Listening for connections on {IP}:{PORT}")
 
 
@@ -165,10 +168,7 @@ def f_queue():
     for socket in sockets_to_purge:
         for game in game_queue:
             if socket in game["players"].keys():
-                system_log(
-                    "ERR",
-                    f"Purging {game['players'][socket]['uid']}"
-                )
+                system_log("ERR", f"Purging {game['players'][socket]['uid']}")
                 del game["players"][socket]
                 sockets_to_purge.remove(socket)
 
@@ -263,6 +263,7 @@ def f_login(client_socket, client_address):
             "address": client_address,
             "queued": False,
             "ingame": False,
+            "points": 0,
         }
     except:
         return None
@@ -274,12 +275,54 @@ def f_login(client_socket, client_address):
 
     client_socket.send("+\n".encode("utf-8"))
 
-    sockets_list.append(client_socket)
+    # sockets_list.append(client_socket)
     clients[client_socket] = user
 
 
 def f_game(gd):
-    print(len(gd["players"]))
+    gd["ended"] = False
+    gd["word"] = None
+    for player in gd["players"].values():
+        player["ingame"] = True
+        # print(f"player: {player['uid']}")
+
+    while gd["word"] == None:
+        if not len(gd["players"].values()):
+            break
+
+        wordsmith = list(gd["players"].keys())[0]
+        system_log("GAME", f"Selecting {gd['players'][wordsmith]['uid']} as wordsmith")
+
+        wordsmith.send("@\n".encode("utf-8"))
+        rs, _, _ = select.select([wordsmith], [], [], WORD_TIMEOUT)
+
+        if not rs:
+            system_log(
+                "GAME", f"No reply from wordsmith in allotted time... Kicking..."
+            )
+            wordsmith.close()
+            sockets_to_purge.append(wordsmith)
+            del gd["players"][wordsmith]
+            del clients[wordsmith]
+        else:
+            word = wordsmith.recv(1024).decode("utf-8").rstrip()
+            if word not in WORD_SET:
+                system_log(
+                    "GAME", f"Reply from wordsmith is not a valid word... Kicking..."
+                )
+                wordsmith.close()
+                sockets_to_purge.append(wordsmith)
+                del gd["players"][wordsmith]
+                del clients[wordsmith]
+            else:
+                system_log("GAME", f"Word successfully chosen as {word}")
+                gd["word"] = word
+                num_str = let_to_num(word)
+                system_log("GAME", f"Broadcasting number-string {repr(num_str)} to players")
+                for socket in gd['players']:
+                    if not socket == wordsmith:
+                        socket.send(let_to_num(word).encode("utf-8"))
+
     print(f"Am Pomu")
 
 
@@ -287,7 +330,7 @@ def f_game(gd):
 #  Funkcja rozpoczęcia sesji gry  #
 # =============================== #
 def start_game(game_info):
-    system_log("INFO", f"Starting GAME (id: {game_info['time_queued']})")
+    system_log("GAME", f"Starting GAME (id: {game_info['time_queued']})")
     test_game = GameHandler(f_game, game_info)
     game_thread_list.append(test_game)
 
@@ -370,7 +413,7 @@ system_log("INIT", "Started QueueHandler")
 system_log("INIT", "Successfully started SERVER\n")
 while True:
     read_sockets, _, exception_sockets = select.select(
-        sockets_list, [], sockets_list, 0.5
+        sockets_list, [], sockets_list, SELECT_TIMEOUT
     )
 
     for notified_socket in read_sockets:
