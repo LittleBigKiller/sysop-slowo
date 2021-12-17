@@ -162,6 +162,7 @@ sockets_list = [SRV_SOCKET]
 clients = {}
 game_queue = []
 sockets_to_purge = []
+messages_to_log = []
 
 
 # ================ #
@@ -358,6 +359,9 @@ def f_player(gd, sock):
     try_ctr = 0
 
     while try_ctr < MAX_GUESS_COUNT:
+        if gd["ended"]:
+            break
+
         try_ctr += 1
         time_pre = time.time()
         rs, _, _ = select.select([sock], [], [], GUESS_KICK_TIMEOUT)
@@ -427,6 +431,7 @@ def f_player(gd, sock):
 
                     else:
                         sock.send("!\n".encode("utf-8"))
+                        continue
 
                 elif cmd == "+":
                     if len(guess) == 1:
@@ -436,6 +441,7 @@ def f_player(gd, sock):
 
                             if hit_count == 0:
                                 sock.send("!\n".encode("utf-8"))
+                                continue
                             else:
                                 gd["players"][sock]["points"] += hit_count
                                 system_log(
@@ -449,17 +455,19 @@ def f_player(gd, sock):
                                         "utf-8"
                                     )
                                 )
+                                continue
                         else:
                             system_log(
                                 "GAME",
                                 f"Player {gd['players'][sock]['uid']} guessed the same letter again! Nope, won't work!",
                             )
                             sock.send("!\n".encode("utf-8"))
+                            continue
 
                     else:
                         system_log(
                             "GAME",
-                            f"Player {gd['players'][sock]['uid']} submitted a malformed guess... Kicking...",
+                            f"Player {gd['players'][sock]['uid']} submitted a malformed guess! Kicking...",
                         )
                         sock.close()
                         sockets_to_purge.append(sock)
@@ -470,7 +478,7 @@ def f_player(gd, sock):
                 else:
                     system_log(
                         "GAME",
-                        f"Player {gd['players'][sock]['uid']} submitted a malformed guess... Kicking...",
+                        f"Player {gd['players'][sock]['uid']} submitted a malformed guess! Kicking...",
                     )
                     sock.close()
                     sockets_to_purge.append(sock)
@@ -478,10 +486,25 @@ def f_player(gd, sock):
                     del clients[sock]
                     return None
 
-    system_log(
-        "GAME",
-        f"Player {gd['players'][sock]['uid']} ran out of guesses... Kicking...",
-    )
+    if try_ctr == MAX_GUESS_COUNT:
+        system_log(
+            "GAME",
+            f"Player {gd['players'][sock]['uid']} ran out of guesses! Kicking...",
+        )
+
+    else:
+        system_log(
+            "GAME",
+            f"Player {gd['players'][sock]['uid']} ran out of time, someone else guessed! Kicking...",
+        )
+        sock.send("=\n".encode("utf-8"))
+        time.sleep(0.05)
+        sock.send(f"{gd['players'][sock]['points']}\n".encode("utf-8"))
+        time.sleep(0.05)
+        sock.send("?\n".encode("utf-8"))
+        time.sleep(0.05)
+
+
     sock.close()
     sockets_to_purge.append(sock)
     del gd["players"][sock]
