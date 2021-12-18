@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import mmap
 import socket
 import select
 import sqlite3
@@ -30,9 +31,7 @@ def system_log(prefix, message):
 # ======================== #
 system_log("INIT", "Starting SERVER...")
 
-DICT_FILE = "slowa.txt"
 CONF_FILE = "config.ini"
-DB_FILE = "wordgame.db"
 ROOT_DIR = os.path.dirname(__file__)
 WORD_SET = set()
 LETTER_DICT = {
@@ -73,20 +72,6 @@ LETTER_DICT = {
     "ż": "3",
 }
 
-system_log("INIT", f"Loading WORD_SET from file '{DICT_FILE}'...")
-
-try:
-    with open(os.path.join(ROOT_DIR, DICT_FILE)) as wfile:
-        for line in wfile:
-            WORD_SET.add(line.rstrip())
-except FileNotFoundError:
-    system_log("ERR", f"Failed to load WORD_SET, file '{DICT_FILE}' is missing")
-    sys.exit(1)
-
-# WORD_SET.add("długonoga")
-
-system_log("INIT", f"Finished loading WORD_SET with {len(WORD_SET)} words")
-
 
 # ==================== #
 #  Init configparsera  #
@@ -109,6 +94,10 @@ except configparser.ParsingError:
 #  Wczytanie stałych z configa  #
 # ============================= #
 try:
+    WORD_SET_IN_RAM = config["APP"]["WORD_SET_IN_RAM"] == "True"
+    DICT_FILE = str(config["APP"]["DICT_FILE"])
+    DB_FILE = str(config["APP"]["DB_FILE"])
+
     IP = str(config["CONNECTION"]["IP"])
     PORT = int(config["CONNECTION"]["PORT"])
 
@@ -127,6 +116,33 @@ except KeyError:
     sys.exit(3)
 
 system_log("INIT", "Finished loading configuration from file")
+
+# =============== #
+#  Init słownika  #
+# =============== #
+if WORD_SET_IN_RAM:
+    system_log("INIT", f"Loading WORD_SET from file '{DICT_FILE}'...")
+
+    try:
+        with open(os.path.join(ROOT_DIR, DICT_FILE)) as wfile:
+            for line in wfile:
+                WORD_SET.add(line.rstrip())
+    except FileNotFoundError:
+        system_log("ERR", f"Failed to load WORD_SET, file '{DICT_FILE}' is missing")
+        sys.exit(1)
+
+    # WORD_SET.add("długonoga")
+
+    system_log("INIT", f"Finished loading WORD_SET with {len(WORD_SET)} words")
+else:
+    try:
+        open(os.path.join(ROOT_DIR, DICT_FILE))
+    except FileNotFoundError:
+        system_log("ERR", f"Failed to access WORD_SET, file '{DICT_FILE}' is missing")
+        sys.exit(1)
+
+    system_log("INIT", f"Using WORD_SET from file insead of loading into RAM")
+
 
 # ================== #
 #  Init bazy danych  #
@@ -205,6 +221,23 @@ def f_queue():
     for game in game_queue:
         time_passed = int(time.time() - game["time_queued"])
 
+        to_purge = []
+        for player in game["players"].keys():
+            rs, _, _ = select.select([player], [], [], 0.01)
+
+            if rs and not len(player.recv(1024)):
+                to_purge.append(player)
+
+        for player in to_purge:
+            system_log(
+                "INFO",
+                f"Closed connection from: {game['players'][player]['uid']}",
+            )
+            player.close()
+            sockets_to_purge.append(player)
+            del game["players"][player]
+            del clients[player]
+
         if len(game["players"].keys()) == MAX_PLAYERS:
             start_game(game)
 
@@ -224,6 +257,10 @@ def f_login(client_socket, client_address):
         id_num = client_socket.recv(1024)
 
         if not len(id_num):
+            system_log(
+                "INFO",
+                f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: CONNECTION_INTERRUPTED\u001b[0m",
+            )
             return None
 
         id_num = id_num.decode("utf-8").rstrip()
@@ -231,6 +268,10 @@ def f_login(client_socket, client_address):
         passwd = client_socket.recv(1024)
 
         if not len(passwd):
+            system_log(
+                "INFO",
+                f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: CONNECTION_INTERRUPTED\u001b[0m",
+            )
             return None
 
         passwd = passwd.decode("utf-8").rstrip()
@@ -238,23 +279,19 @@ def f_login(client_socket, client_address):
         if is_duped(id_num):
             system_log(
                 "INFO",
-                f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: DUPLICATE LOGIN\u001b[0m",
+                f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: DUPLICATE_LOGIN\u001b[0m",
             )
-
             client_socket.send("-\n".encode("utf-8"))
             client_socket.close()
-
             return None
 
         if not auth_user(id_num, passwd):
             system_log(
                 "INFO",
-                f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: BAD AUTH\u001b[0m",
+                f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: BAD_AUTH\u001b[0m",
             )
-
             client_socket.send("-\n".encode("utf-8"))
             client_socket.close()
-
             return None
 
         user = {
@@ -266,11 +303,15 @@ def f_login(client_socket, client_address):
             "guesses": [],
         }
     except:
+        system_log(
+            "INFO",
+            f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: UNHANDLED_EXCEPTION\u001b[0m",
+        )
         return None
 
     system_log(
         "INFO",
-        f"Connection from {client_address[0]}:{client_address[1]} successful (uid: {user['uid']})",
+        f"Connection from {client_address[0]}:{client_address[1]} successful (id: {user['uid']})",
     )
 
     client_socket.send("+\n".encode("utf-8"))
@@ -304,7 +345,7 @@ def f_game(gd):
             del clients[wordsmith]
         else:
             word = wordsmith.recv(1024).decode("utf-8").rstrip()
-            if word not in WORD_SET:
+            if not check_in_wordset(word):
                 system_log(
                     "GAME", f"Reply from wordsmith is not a valid word... Kicking..."
                 )
@@ -504,7 +545,6 @@ def f_player(gd, sock):
         sock.send("?\n".encode("utf-8"))
         time.sleep(0.05)
 
-
     sock.close()
     sockets_to_purge.append(sock)
     del gd["players"][sock]
@@ -546,6 +586,16 @@ def pos_in_word(word, letter):
     pos_string += "\n"
 
     return pos_string
+
+
+def check_in_wordset(word):
+    if WORD_SET_IN_RAM:
+        return word in WORD_SET
+    else:
+        with open(os.path.join(ROOT_DIR, DICT_FILE)) as wfile, mmap.mmap(
+            wfile.fileno(), 0, access=mmap.ACCESS_READ
+        ) as s:
+            return s.find(word.encode("utf-8")) != -1
 
 
 # ==================== #
