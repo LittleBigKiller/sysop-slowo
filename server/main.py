@@ -252,8 +252,8 @@ def f_logger():
     con = sqlite3.connect(os.path.join(ROOT_DIR, DB_FILE))
     cur = con.cursor()
 
-    if len(messages_to_log) > 0:
-        print("MESSAGES TO LOG:")
+    # if len(messages_to_log) > 0:
+    #     print("MESSAGES TO LOG:")
 
     messages_to_purge = []
 
@@ -269,7 +269,7 @@ def f_logger():
                 ),
             )
             con.commit()
-            print("game message", message["message"])
+            # print("game message", message["message"])
             messages_to_purge.append(message)
             pass
 
@@ -286,22 +286,23 @@ def f_logger():
                 ),
             )
             con.commit()
-            print("player result", message["result"])
+            # print("player result", message["result"])
             messages_to_purge.append(message)
             pass
 
         else:
-            print(f"invalid message type: {message['type']}", message)
+            # print(f"invalid message type: {message['type']}", message)
             messages_to_purge.append(message)
             pass
 
     for message in messages_to_purge:
         messages_to_log.remove(message)
 
+    # if len(messages_to_log) > 0:
+    #     print("================")
+
     con.close()
 
-    if len(messages_to_log) > 0:
-        print("================")
 
 
 def f_login(client_socket, client_address):
@@ -371,7 +372,7 @@ def f_login(client_socket, client_address):
         f"Connection from {client_address[0]}:{client_address[1]} successful (id: {user['uid']})",
     )
 
-    client_socket.send("+\n".encode("utf-8"))
+    client_socket.send("+2\n".encode("utf-8"))
 
     clients[client_socket] = user
 
