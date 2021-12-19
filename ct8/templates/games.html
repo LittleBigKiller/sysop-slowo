@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Games</title>
+  <style>
+    table, th, td {
+      border: 2px solid #000;
+    }
+
+    th, td {
+      padding: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Games</h1>
+  <table>
+    <tr>
+      <th>Timestamp</th>
+      <th>Game ID</th>
+      <th>Player ID</th>
+      <th>Message</th>
+    </tr>
+    {% for game in games %}
+    <tr>
+      <td>{{game.timestamp}}</td>
+      <td><a href='/game/{{game.gid}}'>{{game.gid}}</a></td>
+      {% if game.pid != None %}
+      <td><a href='/player/{{game.pid}}'>{{game.pid}}</a></td>
+      {% else %}
+      <td>{{game.pid}}</td>
+      {% endif %}
+      <td>{{game.message}}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+</body>
+
+</html>

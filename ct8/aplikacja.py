@@ -1,10 +1,14 @@
-from flask import Flask
+from flask import Flask, render_template
 
 app = Flask(__name__)
 
 import psutil
+import sqlite3
 import subprocess
 from threading import Thread, Event
+
+DB_CON = sqlite3.connect("./wordgame.db")
+DB_CUR = DB_CON.cursor()
 
 
 class KeepAliveHandler(Thread):
@@ -44,13 +48,83 @@ def f_keepalive(search, start):
 
 
 e_stop_keepalive = Event()
-t_keepalive = KeepAliveHandler(e_stop_keepalive, f_keepalive, "sysop-srv", "./start.sh", 0.5)
+t_keepalive = KeepAliveHandler(
+    e_stop_keepalive, f_keepalive, "sysop-srv", "./start.sh", 0.5
+)
 t_keepalive.start()
 
 
 @app.route("/")
 def hello():
     return "Hello World!"
+
+
+@app.route("/games")
+def games():
+    DB_CUR.execute("SELECT * FROM games")
+    data = DB_CUR.fetchall()
+
+    dicts = []
+    for entry in data:
+        new_dict = {}
+        new_dict["timestamp"] = entry[1]
+        new_dict["gid"] = entry[2]
+        new_dict["pid"] = entry[3]
+        new_dict["message"] = entry[4]
+        dicts.append(new_dict)
+
+    return render_template("games.html", games=dicts)
+
+
+@app.route("/game/<gameid>")
+def game(gameid):
+    DB_CUR.execute("SELECT * FROM games WHERE gid = ?", [gameid])
+    data = DB_CUR.fetchall()
+
+    dicts = []
+    for entry in data:
+        new_dict = {}
+        new_dict["timestamp"] = entry[1]
+        new_dict["gid"] = entry[2]
+        new_dict["pid"] = entry[3]
+        new_dict["message"] = entry[4]
+        dicts.append(new_dict)
+
+    return render_template("game.html", gid=gameid, games=dicts)
+
+
+# @app.route("/players")
+# def players():
+#     DB_CUR.execute("SELECT * FROM players")
+#     data = DB_CUR.fetchall()
+
+#     dicts = []
+#     for entry in data:
+#         new_dict = {}
+#         new_dict["timestamp"] = entry[1]
+#         new_dict["gid"] = entry[2]
+#         new_dict["pid"] = entry[3]
+#         new_dict["message"] = entry[4]
+#         dicts.append(new_dict)
+
+#     return render_template("players.html", players=dicts)
+
+
+# @app.route("/player/<playerid>")
+# def player(playerid):
+#     DB_CUR.execute("SELECT * FROM players WHERE gid = ?", [playerid])
+#     data = DB_CUR.fetchall()
+
+#     dicts = []
+#     for entry in data:
+#         new_dict = {}
+#         new_dict["timestamp"] = entry[1]
+#         new_dict["gid"] = entry[2]
+#         new_dict["pid"] = entry[3]
+#         new_dict["message"] = entry[4]
+#         dicts.append(new_dict)
+
+#     return render_template("player.html", gid=playerid, players=dicts)
 
 
 @app.route("/is_running")
