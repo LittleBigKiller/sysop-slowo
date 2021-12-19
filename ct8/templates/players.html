@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Players</title>
+  <style>
+    table,
+    th,
+    td {
+      border: 2px solid #000;
+    }
+
+    th,
+    td {
+      padding: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Players</h1>
+  <table>
+    <tr>
+      <th>Timestamp</th>
+      <th>Game ID</th>
+      <th>Player ID</th>
+      <th>Points</th>
+      <th>Attempts</th>
+      <th>Result</th>
+    </tr>
+    {% for player in players %}
+    <tr>
+      <td>{{player.timestamp}}</td>
+      <td><a href='/player/{{player.gid}}'>{{player.gid}}</a></td>
+      <td><a href='/player/{{player.pid}}'>{{player.pid}}</a></td>
+      <td>{{player.points}}</td>
+      <td>{{player.attempts}}</td>
+      <td>{{player.result}}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+</body>
+
+</html>

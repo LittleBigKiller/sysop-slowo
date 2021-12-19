@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Player (pid: {{pid}})</title>
+  <style>
+    table,
+    th,
+    td {
+      border: 2px solid #000;
+    }
+
+    th,
+    td {
+      padding: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Player (pid: {{pid}})</h1>
+  <h2><a href="/players">&lt;- Back to players</a></h2>
+  <table>
+    <tr>
+      <th>Timestamp</th>
+      <th>Game ID</th>
+      <th>Player ID</th>
+      <th>Points</th>
+      <th>Attempts</th>
+      <th>Result</th>
+    </tr>
+    {% for player in players %}
+    <tr>
+      <td>{{player.timestamp}}</td>
+      <td><a href='/game/{{player.gid}}'>{{player.gid}}</a></td>
+      <td><a href='/player/{{player.pid}}'>{{player.pid}}</a></td>
+      <td>{{player.points}}</td>
+      <td>{{player.attempts}}</td>
+      <td>{{player.result}}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <br />
+  <h3>Summary</h3>
+  <table>
+    <tr>
+      <th>Games played</th>
+      <th>Point total</th>
+      <th>Point average</th>
+      <th>Attempt total</th>
+      <th>Attempt average</th>
+    </tr>
+    <tr>
+      <td>{{totals.games}}</td>
+      <td>{{totals.pointsum}}</td>
+      <td>{{totals.pointavg}}</td>
+      <td>{{totals.attemptsum}}</td>
+      <td>{{totals.attemptavg}}</td>
+    </tr>
+  </table>
+  <h2><a href="/players">&lt;- Back to players</a></h2>
+
+</body>
+
+</html>

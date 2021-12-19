@@ -64,16 +64,16 @@ def games():
     DB_CUR.execute("SELECT * FROM games")
     data = DB_CUR.fetchall()
 
-    dicts = []
+    games = []
     for entry in data:
         new_dict = {}
         new_dict["timestamp"] = entry[1]
         new_dict["gid"] = entry[2]
         new_dict["pid"] = entry[3]
         new_dict["message"] = entry[4]
-        dicts.append(new_dict)
+        games.append(new_dict)
 
-    return render_template("games.html", games=dicts)
+    return render_template("games.html", games=games)
 
 
 @app.route("/game/<gameid>")
@@ -103,38 +103,58 @@ def game(gameid):
     return render_template("game.html", gid=gameid, games=games, players=players)
 
 
-# @app.route("/players")
-# def players():
-#     DB_CUR.execute("SELECT * FROM players")
-#     data = DB_CUR.fetchall()
+@app.route("/players")
+def players():
+    DB_CUR.execute("SELECT * FROM players")
+    data = DB_CUR.fetchall()
 
-#     dicts = []
-#     for entry in data:
-#         new_dict = {}
-#         new_dict["timestamp"] = entry[1]
-#         new_dict["gid"] = entry[2]
-#         new_dict["pid"] = entry[3]
-#         new_dict["message"] = entry[4]
-#         dicts.append(new_dict)
+    players = []
+    for entry in data:
+        new_dict = {}
+        new_dict["timestamp"] = entry[1]
+        new_dict["gid"] = entry[2]
+        new_dict["pid"] = entry[3]
+        new_dict["points"] = entry[4]
+        new_dict["attempts"] = entry[5]
+        new_dict["result"] = entry[6]
+        players.append(new_dict)
 
-#     return render_template("players.html", players=dicts)
+    return render_template("players.html", players=players)
 
 
-# @app.route("/player/<playerid>")
-# def player(playerid):
-#     DB_CUR.execute("SELECT * FROM players WHERE gid = ?", [playerid])
-#     data = DB_CUR.fetchall()
+@app.route("/player/<playerid>")
+def player(playerid):
+    DB_CUR.execute("SELECT * FROM players WHERE pid = ?", [playerid])
+    data = DB_CUR.fetchall()
 
-#     dicts = []
-#     for entry in data:
-#         new_dict = {}
-#         new_dict["timestamp"] = entry[1]
-#         new_dict["gid"] = entry[2]
-#         new_dict["pid"] = entry[3]
-#         new_dict["message"] = entry[4]
-#         dicts.append(new_dict)
+    players = []
+    for entry in data:
+        new_dict = {}
+        new_dict["timestamp"] = entry[1]
+        new_dict["gid"] = entry[2]
+        new_dict["pid"] = entry[3]
+        new_dict["points"] = entry[4]
+        new_dict["attempts"] = entry[5]
+        new_dict["result"] = entry[6]
+        players.append(new_dict)
 
-#     return render_template("player.html", gid=playerid, players=dicts)
+    totals = {}
+    DB_CUR.execute("SELECT COUNT(gid) FROM players WHERE pid = ?", [playerid])
+    totals["games"] = DB_CUR.fetchone()[0]
+
+    DB_CUR.execute("SELECT SUM(points) FROM players WHERE pid = ?", [playerid])
+    totals["pointsum"] = DB_CUR.fetchone()[0]
+
+    DB_CUR.execute("SELECT AVG(points) FROM players WHERE pid = ?", [playerid])
+    totals["pointavg"] = DB_CUR.fetchone()[0]
+
+    DB_CUR.execute("SELECT SUM(attempts) FROM players WHERE pid = ?", [playerid])
+    totals["attemptsum"] = DB_CUR.fetchone()[0]
+
+    DB_CUR.execute("SELECT AVG(attempts) FROM players WHERE pid = ?", [playerid])
+    totals["attemptavg"] = DB_CUR.fetchone()[0]
+
+    return render_template("player.html", pid=playerid, players=players, totals=totals)
 
 
 @app.route("/is_running")
