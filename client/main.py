@@ -71,7 +71,7 @@ while True:
                 print(repr(word))
                 print('==========================')
                 cli_socket.send(word.encode('utf-8'))
-                time.sleep(SLEEP_TIME)
+                # time.sleep(SLEEP_TIME)
                 word = "d\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -86,7 +86,7 @@ while True:
                 print(repr(word))
                 print('==========================')
                 cli_socket.send(word.encode('utf-8'))
-                time.sleep(SLEEP_TIME)
+                # time.sleep(SLEEP_TIME)
                 word = "g\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -101,7 +101,7 @@ while True:
                 print(repr(word))
                 print('==========================')
                 cli_socket.send(word.encode('utf-8'))
-                time.sleep(SLEEP_TIME)
+                # time.sleep(SLEEP_TIME)
                 word = "o\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -116,7 +116,7 @@ while True:
                 print(repr(word))
                 print('==========================')
                 cli_socket.send(word.encode('utf-8'))
-                time.sleep(SLEEP_TIME)
+                # time.sleep(SLEEP_TIME)
                 word = "n\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -131,7 +131,7 @@ while True:
                 print(repr(word))
                 print('==========================')
                 cli_socket.send(word.encode('utf-8'))
-                time.sleep(SLEEP_TIME)
+                # time.sleep(SLEEP_TIME)
                 word = "u\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -146,7 +146,7 @@ while True:
                 print(repr(word))
                 print('==========================')
                 cli_socket.send(word.encode('utf-8'))
-                time.sleep(SLEEP_TIME)
+                # time.sleep(SLEEP_TIME)
                 word = "ł\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -161,7 +161,7 @@ while True:
                 print(repr(word))
                 print('==========================')
                 cli_socket.send(word.encode('utf-8'))
-                time.sleep(SLEEP_TIME)
+                # time.sleep(SLEEP_TIME)
                 word = "x\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -176,7 +176,7 @@ while True:
                 print(repr(word))
                 print('==========================')
                 cli_socket.send(word.encode('utf-8'))
-                time.sleep(SLEEP_TIME)
+                # time.sleep(SLEEP_TIME)
                 word = "długonoga\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
