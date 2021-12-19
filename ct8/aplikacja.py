@@ -81,16 +81,26 @@ def game(gameid):
     DB_CUR.execute("SELECT * FROM games WHERE gid = ?", [gameid])
     data = DB_CUR.fetchall()
 
-    dicts = []
+    games = []
     for entry in data:
         new_dict = {}
         new_dict["timestamp"] = entry[1]
         new_dict["gid"] = entry[2]
         new_dict["pid"] = entry[3]
         new_dict["message"] = entry[4]
-        dicts.append(new_dict)
+        games.append(new_dict)
 
-    return render_template("game.html", gid=gameid, games=dicts)
+    DB_CUR.execute("SELECT pid,points FROM players WHERE gid = ?", [gameid])
+    data = DB_CUR.fetchall()
+
+    players = []
+    for entry in data:
+        new_dict = {}
+        new_dict["pid"] = entry[0]
+        new_dict["points"] = entry[1]
+        players.append(new_dict)
+
+    return render_template("game.html", gid=gameid, games=games, players=players)
 
 
 # @app.route("/players")

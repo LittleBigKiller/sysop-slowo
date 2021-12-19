@@ -22,6 +22,7 @@
 
 <body>
   <h1>Game (gid: {{gid}})</h1>
+  <h2><a href="/games">&lt;- Back to games</a></h2>
   <table>
     <tr>
       <th>Timestamp</th>
@@ -39,6 +40,19 @@
       <td>{{game.pid}}</td>
       {% endif %}
       <td>{{game.message}}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <br />
+  <table>
+    <tr>
+      <th>Player ID</th>
+      <th>Points</th>
+    </tr>
+    {% for player in players %}
+    <tr>
+      <td><a href="/player/{{player.pid}}">{{player.pid}}</a></td>
+      <td>{{player.points}}</td>
     </tr>
     {% endfor %}
   </table>
