@@ -429,22 +429,35 @@ def f_player(gd, sock):
                 return None
 
             else:
+                # TODO tutaj nie sprawdzam czy rzeczywiście przyszło
                 cmd = sock.recv(1024).decode("utf-8").rstrip()
 
-                rs, _, _ = select.select([sock], [], [], GUESS_KICK_TIMEOUT)
+                # print('repr cmd', repr(cmd))
 
-                if not rs:
-                    system_log(
-                        "GAME",
-                        f"Player {gd['players'][sock]['uid']} submitted a malformed guess... Kicking...",
-                    )
-                    sock.close()
-                    sockets_to_purge.append(sock)
-                    del gd["players"][sock]
-                    del clients[sock]
-                    return None
+                if len(cmd.split('\n')) == 2 and cmd.split('\n')[-1] == '':
+                    rs, _, _ = select.select([sock], [], [], GUESS_KICK_TIMEOUT)
 
-                guess = sock.recv(1024).decode("utf-8").rstrip()
+                    if not rs:
+                        system_log(
+                            "GAME",
+                            f"Player {gd['players'][sock]['uid']} submitted a malformed guess... Kicking...",
+                        )
+                        # print('malf cmd', cmd)
+                        sock.close()
+                        sockets_to_purge.append(sock)
+                        del gd["players"][sock]
+                        del clients[sock]
+                        return None
+
+                    guess = sock.recv(1024).decode("utf-8").rstrip()
+                    # print('guess', guess)
+                
+                else:
+                    guess = cmd.split('\n')[1]
+                    cmd = cmd.split('\n')[0]
+
+                # print('repr cmd1', repr(cmd))
+                # print('repr guess1', repr(guess))
 
                 if cmd == "=":
                     if guess == gd["word"]:
@@ -481,13 +494,17 @@ def f_player(gd, sock):
                             gd["players"][sock]["guesses"].append(guess)
 
                             if hit_count == 0:
+                                system_log(
+                                    "GAME",
+                                    f"Player {gd['players'][sock]['uid']} did not guess a letter ({guess})!",
+                                )
                                 sock.send("!\n".encode("utf-8"))
                                 continue
                             else:
                                 gd["players"][sock]["points"] += hit_count
                                 system_log(
                                     "GAME",
-                                    f"Player {gd['players'][sock]['uid']} guessed a letter!",
+                                    f"Player {gd['players'][sock]['uid']} guessed a letter ({guess})!",
                                 )
                                 sock.send("=\n".encode("utf-8"))
                                 time.sleep(0.05)
@@ -500,8 +517,9 @@ def f_player(gd, sock):
                         else:
                             system_log(
                                 "GAME",
-                                f"Player {gd['players'][sock]['uid']} guessed the same letter again! Nope, won't work!",
+                                f"Player {gd['players'][sock]['uid']} guessed the same letter ({guess}) again! Nope, won't work!",
                             )
+                            # print('same repr guess', repr(guess))
                             sock.send("!\n".encode("utf-8"))
                             continue
 
@@ -510,6 +528,8 @@ def f_player(gd, sock):
                             "GAME",
                             f"Player {gd['players'][sock]['uid']} submitted a malformed guess! Kicking...",
                         )
+                        # print('malf0 repr cmd', repr(cmd))
+                        # print('malf0 repr guess', repr(guess))
                         sock.close()
                         sockets_to_purge.append(sock)
                         del gd["players"][sock]
@@ -521,6 +541,8 @@ def f_player(gd, sock):
                         "GAME",
                         f"Player {gd['players'][sock]['uid']} submitted a malformed guess! Kicking...",
                     )
+                    # print('malf1 repr cmd', repr(cmd))
+                    # print('malf1 repr guess', repr(guess))
                     sock.close()
                     sockets_to_purge.append(sock)
                     del gd["players"][sock]
