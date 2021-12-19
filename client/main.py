@@ -65,6 +65,7 @@ while True:
                 cli_socket.send(word.encode('utf-8'))
 
             elif rcv.rstrip() == "331211121":
+                time.sleep(SLEEP_TIME)
                 word = "+\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -80,6 +81,7 @@ while True:
                 cli_socket.send(word.encode('utf-8'))
 
             elif rcv.rstrip() == "100000000":
+                time.sleep(SLEEP_TIME)
                 word = "+\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -95,6 +97,7 @@ while True:
                 cli_socket.send(word.encode('utf-8'))
                 
             elif rcv.rstrip() == "000100010":
+                time.sleep(SLEEP_TIME)
                 word = "+\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -110,6 +113,7 @@ while True:
                 cli_socket.send(word.encode('utf-8'))
 
             elif rcv.rstrip() == "000010100":
+                time.sleep(SLEEP_TIME)
                 word = "+\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -125,6 +129,7 @@ while True:
                 cli_socket.send(word.encode('utf-8'))
 
             elif rcv.rstrip() == "000001000":
+                time.sleep(SLEEP_TIME)
                 word = "+\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -140,6 +145,7 @@ while True:
                 cli_socket.send(word.encode('utf-8'))
 
             elif rcv.rstrip() == "001000000":
+                time.sleep(SLEEP_TIME)
                 word = "+\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -155,6 +161,7 @@ while True:
                 cli_socket.send(word.encode('utf-8'))
 
             elif rcv.rstrip() == "010000000":
+                time.sleep(SLEEP_TIME)
                 word = "+\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
@@ -170,6 +177,7 @@ while True:
                 cli_socket.send(word.encode('utf-8'))
 
             elif rcv.rstrip() == "!":
+                time.sleep(SLEEP_TIME)
                 word = "=\n"
                 print('===========AUTO===========')
                 print(word.rstrip())
