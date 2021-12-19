@@ -14,6 +14,18 @@ class QueueHandler(Thread):
             self.func()
 
 
+class LoggerHandler(Thread):
+    def __init__(self, event, function, int_time):
+        Thread.__init__(self, daemon=True)
+        self.stop_ev = event
+        self.func = function
+        self.t = int_time
+
+    def run(self):
+        while not self.stop_ev.wait(self.t):
+            self.func()
+
+
 class LoginHandler(Thread):
     def __init__(self, func, sock, addr):
         Thread.__init__(self, daemon=True)
