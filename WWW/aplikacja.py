@@ -61,16 +61,18 @@ def index():
 
 @app.route("/games")
 def games():
-    DB_CUR.execute("SELECT * FROM games")
-    data = DB_CUR.fetchall()
+    DB_CUR.execute("SELECT gid,count(DISTINCT pid) AS count FROM games GROUP BY gid ORDER BY gid")
+    data0 = DB_CUR.fetchall()
+
+    DB_CUR.execute("SELECT gid,message FROM games WHERE message LIKE 'Word chosen as%' ORDER BY gid")
+    data1 = DB_CUR.fetchall()
 
     games = []
-    for entry in data:
+    for index,entry in enumerate(data0):
         new_dict = {}
-        new_dict["timestamp"] = entry[1]
-        new_dict["gid"] = entry[2]
-        new_dict["pid"] = entry[3]
-        new_dict["message"] = entry[4]
+        new_dict["gid"] = entry[0]
+        new_dict["pidcount"] = entry[1]
+        new_dict["word"] = data1[index][1].split(':')[1].rsplit()[0]
         games.append(new_dict)
 
     return render_template("games.html", games=games)
