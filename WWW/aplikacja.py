@@ -80,19 +80,18 @@ def games():
 
 @app.route("/game/<gameid>")
 def game(gameid):
-    DB_CUR.execute("SELECT * FROM games WHERE gid = ?", [gameid])
+    DB_CUR.execute("SELECT timestamp,pid,message FROM games WHERE gid = ?", [gameid])
     data = DB_CUR.fetchall()
 
     games = []
     for entry in data:
         new_dict = {}
-        new_dict["timestamp"] = entry[1]
-        new_dict["gid"] = entry[2]
-        new_dict["pid"] = entry[3]
-        new_dict["message"] = entry[4]
+        new_dict["timestamp"] = entry[0]
+        new_dict["pid"] = entry[1]
+        new_dict["message"] = entry[2]
         games.append(new_dict)
 
-    DB_CUR.execute("SELECT pid,points FROM players WHERE gid = ?", [gameid])
+    DB_CUR.execute("SELECT pid,points,result FROM players WHERE gid = ? ORDER BY points DESC", [gameid])
     data = DB_CUR.fetchall()
 
     players = []
@@ -100,6 +99,7 @@ def game(gameid):
         new_dict = {}
         new_dict["pid"] = entry[0]
         new_dict["points"] = entry[1]
+        new_dict["result"] = entry[2]
         players.append(new_dict)
 
     return render_template("game.html", gid=gameid, games=games, players=players)
@@ -122,18 +122,17 @@ def players():
 
 @app.route("/player/<playerid>")
 def player(playerid):
-    DB_CUR.execute("SELECT * FROM players WHERE pid = ?", [playerid])
+    DB_CUR.execute("SELECT timestamp,gid,points,attempts,result FROM players WHERE pid = ?", [playerid])
     data = DB_CUR.fetchall()
 
     players = []
     for entry in data:
         new_dict = {}
-        new_dict["timestamp"] = entry[1]
-        new_dict["gid"] = entry[2]
-        new_dict["pid"] = entry[3]
-        new_dict["points"] = entry[4]
-        new_dict["attempts"] = entry[5]
-        new_dict["result"] = entry[6]
+        new_dict["timestamp"] = entry[0]
+        new_dict["gid"] = entry[1]
+        new_dict["points"] = entry[2]
+        new_dict["attempts"] = entry[3]
+        new_dict["result"] = entry[4]
         players.append(new_dict)
 
     totals = {}

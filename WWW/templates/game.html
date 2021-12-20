@@ -26,14 +26,12 @@
   <table>
     <tr>
       <th>Timestamp</th>
-      <th>Game ID</th>
       <th>Player ID</th>
       <th>Message</th>
     </tr>
     {% for game in games %}
     <tr>
       <td>{{game.timestamp}}</td>
-      <td><a href="/game/{{game.gid}}">{{game.gid}}</a></td>
       {% if game.pid != None %}
       <td><a href="/player/{{game.pid}}">{{game.pid}}</a></td>
       {% else %}
@@ -49,11 +47,13 @@
     <tr>
       <th>Player ID</th>
       <th>Points</th>
+      <th>Result</th>
     </tr>
     {% for player in players %}
     <tr>
       <td><a href="/player/{{player.pid}}">{{player.pid}}</a></td>
       <td>{{player.points}}</td>
+      <td>{{player.result}}</td>
     </tr>
     {% endfor %}
   </table>
