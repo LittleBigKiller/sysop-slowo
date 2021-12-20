@@ -25,21 +25,13 @@
   <h2><a href="/games">Games</a></h2>
   <table>
     <tr>
-      <th>Timestamp</th>
-      <th>Game ID</th>
       <th>Player ID</th>
-      <th>Points</th>
-      <th>Attempts</th>
-      <th>Result</th>
+      <th>Point total</th>
     </tr>
     {% for player in players %}
     <tr>
-      <td>{{player.timestamp}}</td>
-      <td><a href='/game/{{player.gid}}'>{{player.gid}}</a></td>
       <td><a href='/player/{{player.pid}}'>{{player.pid}}</a></td>
       <td>{{player.points}}</td>
-      <td>{{player.attempts}}</td>
-      <td>{{player.result}}</td>
     </tr>
     {% endfor %}
   </table>

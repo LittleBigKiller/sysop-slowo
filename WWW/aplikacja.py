@@ -105,18 +105,14 @@ def game(gameid):
 
 @app.route("/players")
 def players():
-    DB_CUR.execute("SELECT * FROM players")
+    DB_CUR.execute("SELECT pid,sum(points) AS sum FROM players GROUP BY pid ORDER BY sum DESC")
     data = DB_CUR.fetchall()
 
     players = []
     for entry in data:
         new_dict = {}
-        new_dict["timestamp"] = entry[1]
-        new_dict["gid"] = entry[2]
-        new_dict["pid"] = entry[3]
-        new_dict["points"] = entry[4]
-        new_dict["attempts"] = entry[5]
-        new_dict["result"] = entry[6]
+        new_dict["pid"] = entry[0]
+        new_dict["points"] = entry[1]
         players.append(new_dict)
 
     return render_template("players.html", players=players)
