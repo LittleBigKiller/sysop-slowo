@@ -56,7 +56,17 @@ t_keepalive.start()
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    DB_CUR.execute("SELECT gid,pid FROM queue")
+    data = DB_CUR.fetchall()
+
+    queue = []
+    for entry in data:
+        new_dict = {}
+        new_dict["gid"] = entry[0]
+        new_dict["pid"] = entry[1]
+        queue.append(new_dict)
+
+    return render_template("index.html", queue=queue)
 
 
 @app.route("/games")

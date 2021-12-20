@@ -181,6 +181,14 @@ game_queue = []
 sockets_to_purge = []
 messages_to_log = []
 
+messages_to_log.append(
+    {
+        "type": "queue",
+        "action": "purge",
+        "gid": None,
+        "pid": None,
+    }
+)
 
 # ================ #
 #  Funkcje wątków  #
@@ -190,6 +198,14 @@ def f_queue():
         for game in game_queue:
             if socket in game["players"].keys():
                 system_log("ERR", f"Purging {game['players'][socket]['uid']}")
+                messages_to_log.append(
+                    {
+                        "type": "queue",
+                        "action": "rem",
+                        "gid": None,
+                        "pid": client["uid"],
+                    }
+                )
                 del game["players"][socket]
                 sockets_to_purge.remove(socket)
 
@@ -217,6 +233,14 @@ def f_queue():
                 "INFO",
                 f"Added player (id: {client['uid']}) to queued game (id: {last_game['time_queued']})",
             )
+            messages_to_log.append(
+                {
+                    "type": "queue",
+                    "action": "add",
+                    "gid": last_game["time_queued"],
+                    "pid": client["uid"],
+                }
+            )
             client["queued"] = True
 
     for game in game_queue:
@@ -240,11 +264,29 @@ def f_queue():
             del clients[player]
 
         if len(game["players"].keys()) == MAX_PLAYERS:
+            for player in game["players"].keys():
+                messages_to_log.append(
+                    {
+                        "type": "queue",
+                        "action": "rem",
+                        "gid": None,
+                        "pid": game["players"][player]["uid"],
+                    }
+                )
             start_game(game)
 
         elif (
             time_passed >= QUEUE_TIMEOUT and len(game["players"].keys()) >= MIN_PLAYERS
         ):
+            for player in game["players"].keys():
+                messages_to_log.append(
+                    {
+                        "type": "queue",
+                        "action": "rem",
+                        "gid": None,
+                        "pid": game["players"][player]["uid"],
+                    }
+                )
             start_game(game)
 
 
@@ -290,6 +332,26 @@ def f_logger():
             messages_to_purge.append(message)
             pass
 
+        elif message["type"] == "queue":
+            if message["action"] == "purge":
+                cur.execute("DELETE FROM queue")
+                con.commit()
+            elif message["action"] == "add":
+                cur.execute(
+                    "INSERT INTO queue (gid, pid) VALUES (?, ?)",
+                    (message["gid"], message["pid"]),
+                )
+                con.commit()
+            elif message["action"] == "rem":
+                cur.execute(
+                    "DELETE FROM queue WHERE pid = ?",
+                    (message["pid"]),
+                )
+                con.commit()
+            # print("queue mess", message)
+            messages_to_purge.append(message)
+            pass
+
         else:
             # print(f"invalid message type: {message['type']}", message)
             messages_to_purge.append(message)
@@ -302,7 +364,6 @@ def f_logger():
     #     print("================")
 
     con.close()
-
 
 
 def f_login(client_socket, client_address):
