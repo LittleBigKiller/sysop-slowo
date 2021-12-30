@@ -1,44 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends 'base.html' %}
 
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Games</title>
-  <style>
-    table,
-    th,
-    td {
-      border: 2px solid #000;
-    }
+{% block title %}
+Games
+{% endblock %}
 
-    th,
-    td {
-      padding: 4px;
-    }
-  </style>
-</head>
-
-<body>
-  <h1>Games</h1>
-  <h2><a href="/">Main page</a></h2>
-  <table>
+{% block content %}
+<h2>Game Log</h2>
+<table class="table table-hover table-bordered">
+  <thead>
     <tr>
-      <th>Game ID</th>
-      <th>Player Count</th>
-      <th>Word</th>
+      <th scope="col">#</th>
+      <th scope="col">Game ID</th>
+      <th scope="col">Player Count</th>
+      <th scope="col">Word</th>
     </tr>
+  </thead>
+  <tbody>
+    {% if games|length == 0 %}
+
+    <tr>
+      <td colspan="4" class="text-center text-muted">no games played yet</td>
+    </tr>
+
+    {% else %}
+
     {% for game in games %}
     <tr>
-      <td><a href='/game/{{game.gid}}'>{{game.gid}}</a></td>
+      <th scope="row">{{loop.index}}</th>
+      <td><a href="{{ url_for('game', gameid=game.gid) }}">{{game.gid}}</a></td>
       <td>{{game.pidcount}}</td>
       <td>{{game.word}}</td>
     </tr>
     {% endfor %}
-  </table>
-  <h2><a href="/">Main page</a></h2>
 
-</body>
-
-</html>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}
