@@ -1,42 +1,37 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends 'base.html' %}
 
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Players</title>
-  <style>
-    table,
-    th,
-    td {
-      border: 2px solid #000;
-    }
+{% block title %}
+Players
+{% endblock %}
 
-    th,
-    td {
-      padding: 4px;
-    }
-  </style>
-</head>
-
-<body>
-  <h1>Players</h1>
-  <h2><a href="/">Main page</a></h2>
-  <table>
+{% block content %}
+<h2>Player Ranking</h2>
+<table class="table table-hover table-bordered">
+  <thead>
     <tr>
-      <th>Player ID</th>
-      <th>Point total</th>
+      <th scope="col">#</th>
+      <th scope="col">Player ID</th>
+      <th scope="col">Point total</th>
     </tr>
+  </thead>
+  <tbody>
+    {% if players|length == 0 %}
+
+    <tr>
+      <td colspan="3" class="text-center text-muted">no players scored yet</td>
+    </tr>
+
+    {% else %}
+
     {% for player in players %}
     <tr>
-      <td><a href='/player/{{player.pid}}'>{{player.pid}}</a></td>
+      <th scope="row">{{loop.index}}</th>
+      <td><a href="{{ url_for('player', playerid=player.pid) }}">{{player.pid}}</a></td>
       <td>{{player.points}}</td>
     </tr>
     {% endfor %}
-  </table>
-  <h2><a href="/">Main page</a></h2>
 
-</body>
-
-</html>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}
