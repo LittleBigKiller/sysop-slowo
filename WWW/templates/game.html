@@ -1,64 +1,63 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends 'base.html' %}
 
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Game (gid: {{gid}})</title>
-  <style>
-    table,
-    th,
-    td {
-      border: 2px solid #000;
-    }
+{% block title %}
+Game {{gid}}
+{% endblock %}
 
-    th,
-    td {
-      padding: 4px;
-    }
-  </style>
-</head>
+{% block content %}
+<h2> Game {{gid}}</h2>
 
-<body>
-  <h1>Game (gid: {{gid}})</h1>
-  <h2><a href="/games">&lt;- Back to games</a></h2>
-  <table>
+<br />
+
+<h2>Summary</h2>
+
+<table class="table table-hover table-bordered">
+  <thead>
     <tr>
-      <th>Timestamp</th>
-      <th>Player ID</th>
-      <th>Message</th>
+      <th scope="col">#</th>
+      <th scope="col">Player ID</th>
+      <th scope="col">Points</th>
+      <th scope="col">Result</th>
     </tr>
+  </thead>
+  <tbody>
+    {% for player in players %}
+    <tr>
+      <th scope="row">{{loop.index}}</th>
+      <td><a href="{{ url_for('player', playerid=player.pid) }}">{{player.pid}}</a></td>
+      <td>{{player.points}}</td>
+      <td>{{player.result}}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<br />
+
+<h2>Event Log</h2>
+
+<table class="table table-hover table-bordered">
+  <thead>
+    <tr>
+      <th scope="col">#</th>
+      <th scope="col">Timestamp</th>
+      <th scope="col">Player ID</th>
+      <th scope="col">Event</th>
+    </tr>
+  </thead>
+  <tbody>
     {% for game in games %}
     <tr>
+      <th scope="row">{{loop.index}}</th>
       <td>{{game.timestamp}}</td>
       {% if game.pid != None %}
-      <td><a href="/player/{{game.pid}}">{{game.pid}}</a></td>
+      <td><a href="{{ url_for('player', playerid=game.pid) }}">{{game.pid}}</a></td>
       {% else %}
       <td>{{game.pid}}</td>
       {% endif %}
       <td>{{game.message}}</td>
     </tr>
     {% endfor %}
-  </table>
-  <br />
-  <h3>Summary</h3>
-  <table>
-    <tr>
-      <th>Player ID</th>
-      <th>Points</th>
-      <th>Result</th>
-    </tr>
-    {% for player in players %}
-    <tr>
-      <td><a href="/player/{{player.pid}}">{{player.pid}}</a></td>
-      <td>{{player.points}}</td>
-      <td>{{player.result}}</td>
-    </tr>
-    {% endfor %}
-  </table>
-  <h2><a href="/games">&lt;- Back to games</a></h2>
-
-</body>
-
-</html>
+  </tbody>
+</table>
+{% endblock %}
