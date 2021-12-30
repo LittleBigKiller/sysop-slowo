@@ -345,7 +345,7 @@ def f_logger():
             elif message["action"] == "rem":
                 cur.execute(
                     "DELETE FROM queue WHERE pid = ?",
-                    (message["pid"]),
+                    [message["pid"]],
                 )
                 con.commit()
             # print("queue mess", message)
