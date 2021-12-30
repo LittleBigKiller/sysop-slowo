@@ -5,6 +5,7 @@ app = Flask(__name__)
 import psutil
 import sqlite3
 import subprocess
+from datetime import datetime
 from threading import Thread, Event
 
 DB_CON = sqlite3.connect("./wordgame.db")
@@ -71,18 +72,22 @@ def index():
 
 @app.route("/games")
 def games():
-    DB_CUR.execute("SELECT gid,count(DISTINCT pid) AS count FROM games GROUP BY gid ORDER BY gid")
+    DB_CUR.execute(
+        "SELECT gid,count(DISTINCT pid) AS count FROM games GROUP BY gid ORDER BY gid"
+    )
     data0 = DB_CUR.fetchall()
 
-    DB_CUR.execute("SELECT gid,message FROM games WHERE message LIKE 'Word chosen as%' ORDER BY gid")
+    DB_CUR.execute(
+        "SELECT gid,message FROM games WHERE message LIKE 'Word chosen as%' ORDER BY gid"
+    )
     data1 = DB_CUR.fetchall()
 
     games = []
-    for index,entry in enumerate(data0):
+    for index, entry in enumerate(data0):
         new_dict = {}
         new_dict["gid"] = entry[0]
         new_dict["pidcount"] = entry[1]
-        new_dict["word"] = data1[index][1].split(':')[1].rsplit()[0]
+        new_dict["word"] = data1[index][1].split(":")[1].rsplit()[0]
         games.append(new_dict)
 
     return render_template("games.html", games=games)
@@ -96,12 +101,15 @@ def game(gameid):
     games = []
     for entry in data:
         new_dict = {}
-        new_dict["timestamp"] = entry[0]
+        new_dict["timestamp"] = datetime.fromtimestamp(float(entry[0])).strftime("%Y-%m-%d %H:%M:%S.%f")
         new_dict["pid"] = entry[1]
         new_dict["message"] = entry[2]
         games.append(new_dict)
 
-    DB_CUR.execute("SELECT pid,points,result FROM players WHERE gid = ? ORDER BY points DESC", [gameid])
+    DB_CUR.execute(
+        "SELECT pid,points,result FROM players WHERE gid = ? ORDER BY points DESC",
+        [gameid],
+    )
     data = DB_CUR.fetchall()
 
     players = []
@@ -117,7 +125,9 @@ def game(gameid):
 
 @app.route("/players")
 def players():
-    DB_CUR.execute("SELECT pid,sum(points) AS sum FROM players GROUP BY pid ORDER BY sum DESC")
+    DB_CUR.execute(
+        "SELECT pid,sum(points) AS sum FROM players GROUP BY pid ORDER BY sum DESC"
+    )
     data = DB_CUR.fetchall()
 
     players = []
@@ -132,13 +142,16 @@ def players():
 
 @app.route("/player/<playerid>")
 def player(playerid):
-    DB_CUR.execute("SELECT timestamp,gid,points,attempts,result FROM players WHERE pid = ?", [playerid])
+    DB_CUR.execute(
+        "SELECT timestamp,gid,points,attempts,result FROM players WHERE pid = ?",
+        [playerid],
+    )
     data = DB_CUR.fetchall()
 
     players = []
     for entry in data:
         new_dict = {}
-        new_dict["timestamp"] = entry[0]
+        new_dict["timestamp"] = datetime.fromtimestamp(float(entry[0])).strftime("%Y-%m-%d %H:%M:%S.%f")
         new_dict["gid"] = entry[1]
         new_dict["points"] = entry[2]
         new_dict["attempts"] = entry[3]
