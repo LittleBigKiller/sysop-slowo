@@ -12,21 +12,23 @@ Home
 <table class="table table-hover table-bordered">
   <thead>
     <tr>
-      <th>Game ID</th>
-      <th>Player ID</th>
+      <th scope="col">#</th>
+      <th scope="col">Game ID</th>
+      <th scope="col">Player ID</th>
     </tr>
   </thead>
   <tbody>
     {% if queue|length == 0 %}
 
     <tr>
-      <td colspan="2" class="text-center text-muted">queue is empty</td>
+      <td colspan="3" class="text-center text-muted">queue is empty</td>
     </tr>
 
     {% else %}
 
     {% for player in queue %}
     <tr>
+      <th scope="row">{{loop.index}}</th>
       <td>{{player.gid}}</td>
       <td><a href="{{ url_for('player', playerid=player.pid) }}">{{player.pid}}</a></td>
     </tr>
