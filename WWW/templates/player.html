@@ -9,6 +9,31 @@ Player {{pid}}
 
 <br />
 
+<h2>Stat Summary</h2>
+
+<table class="table table-hover table-bordered">
+  <thead>
+    <tr>
+      <th scope="col">Games played</th>
+      <th scope="col">Point total</th>
+      <th scope="col">Point average</th>
+      <th scope="col">Attempt total</th>
+      <th scope="col">Attempt average</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>{{totals.games}}</td>
+      <td>{{totals.pointsum}}</td>
+      <td>{{totals.pointavg}}</td>
+      <td>{{totals.attemptsum}}</td>
+      <td>{{totals.attemptavg}}</td>
+    </tr>
+  </tbody>
+</table>
+
+<br />
+
 <h2>Game Log</h2>
 
 <table class="table table-hover table-bordered">
@@ -43,31 +68,6 @@ Player {{pid}}
     {% endfor %}
 
     {% endif %}
-  </tbody>
-</table>
-
-<br />
-
-<h2>Stat Summary</h2>
-
-<table class="table table-hover table-bordered">
-  <thead>
-    <tr>
-      <th scope="col">Games played</th>
-      <th scope="col">Point total</th>
-      <th scope="col">Point average</th>
-      <th scope="col">Attempt total</th>
-      <th scope="col">Attempt average</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>{{totals.games}}</td>
-      <td>{{totals.pointsum}}</td>
-      <td>{{totals.pointavg}}</td>
-      <td>{{totals.attemptsum}}</td>
-      <td>{{totals.attemptavg}}</td>
-    </tr>
   </tbody>
 </table>
 {% endblock %}
