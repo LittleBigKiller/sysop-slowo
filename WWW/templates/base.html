@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" class="h-100">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Bootstrap CSS (darkly theme) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.1.3/dist/darkly/bootstrap.min.css"
+    integrity="sha256-VZi/r/RC1MritcGE2Yyxb/ACi8WIOj1Y7BHuslF8+6I=" crossorigin="anonymous">
+
+  <!-- Bootstrap Icons CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+
+  <title>{% block title %} {% endblock %}</title>
+</head>
+
+<body class="d-flex flex-column h-100">
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="{{ url_for('index') }}">Word Game</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+        aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav">
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('games') }}">Games</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('players') }}">Players</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="flex-shrink-0 w-100 py-4">
+    <div class="container">
+      {% block content %} {% endblock %}
+    </div>
+  </main>
+
+  <footer class="footer mt-auto bg-primary">
+    <div class="container pt-3 pb-2 text-center">
+      <div class="row">
+        <div class="col">
+          <a class="btn btn-outline-light" href="https://github.com/LittleBigKiller/sysop-slowo" role="button">
+            <i class="bi bi-git"></i> Repository
+          </a>
+        </div>
+        <div class="col">
+          <a class="btn btn-outline-light" href="mailto:jdyrcz@student.agh.edu.pl" role="button">
+            <i class="bi bi-envelope-fill"></i> Mail
+          </a>
+        </div>
+        <div class="col">
+          <a class="btn btn-outline-light" href="https://teams.microsoft.com/l/chat/0/0?users=jdyrcz@student.agh.edu.pl"
+            role="button">
+            <i class="bi bi-microsoft"></i> MS Teams
+          </a>
+        </div>
+      </div>
+      <div class="row mt-2">
+        <div class="col">
+          <span class="fs-6">Created by <a class="text-decoration-none" href="https://github.com/LittleBigKiller">Jakub Dyrcz</a></span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Optional JavaScript -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-U1DAWAznBHeqEIlVSCgzq+c9gqGAJn5c/t99JyeKa9xxaYpSvHU5awsuZVVFIhvj"
+    crossorigin="anonymous"></script>
+
+</body>
+
+</html>
