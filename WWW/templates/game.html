@@ -9,55 +9,76 @@ Game {{gid}}
 
 <br />
 
-<h2>Summary</h2>
-
-<table class="table table-hover table-bordered">
-  <thead>
-    <tr>
-      <th scope="col">#</th>
-      <th scope="col">Player ID</th>
-      <th scope="col">Points</th>
-      <th scope="col">Result</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for player in players %}
-    <tr>
-      <th scope="row">{{loop.index}}</th>
-      <td><a href="{{ url_for('player', playerid=player.pid) }}">{{player.pid}}</a></td>
-      <td>{{player.points}}</td>
-      <td>{{player.result}}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-
-<br />
-
-<h2>Event Log</h2>
-
-<table class="table table-hover table-bordered">
-  <thead>
-    <tr>
-      <th scope="col">#</th>
-      <th scope="col">Timestamp</th>
-      <th scope="col">Player ID</th>
-      <th scope="col">Event</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for game in games %}
-    <tr>
-      <th scope="row">{{loop.index}}</th>
-      <td>{{game.timestamp}}</td>
-      {% if game.pid != None %}
-      <td><a href="{{ url_for('player', playerid=game.pid) }}">{{game.pid}}</a></td>
-      {% else %}
-      <td>{{game.pid}}</td>
-      {% endif %}
-      <td>{{game.message}}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="accordion" id="accordionGameStats">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="headingResult">
+      <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseResult"
+        aria-expanded="true" aria-controls="collapseResult">
+        <span class="fs-2">Result</span>
+      </button>
+    </h2>
+    <div id="collapseResult" class="accordion-collapse collapse show" aria-labelledby="headingResult"
+      data-bs-parent="#accordionGameStats">
+      <div class="accordion-body">
+        <table class="table table-hover table-bordered">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Player ID</th>
+              <th scope="col">Points</th>
+              <th scope="col">Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for player in players %}
+            <tr>
+              <th scope="row">{{loop.index}}</th>
+              <td><a href="{{ url_for('player', playerid=player.pid) }}">{{player.pid}}</a></td>
+              <td>{{player.points}}</td>
+              <td>{{player.result}}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="headingLog">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLog"
+        aria-expanded="true" aria-controls="collapseLog">
+        <span class="fs-2">Event Log</span>
+      </button>
+    </h2>
+    <div id="collapseLog" class="accordion-collapse collapse" aria-labelledby="headingLog"
+      data-bs-parent="#accordionGameStats">
+      <div class="accordion-body">
+        <table class="table table-hover table-bordered">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Timestamp</th>
+              <th scope="col">Player ID</th>
+              <th scope="col">Event</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for game in games %}
+            <tr>
+              <th scope="row">{{loop.index}}</th>
+              <td>{{game.timestamp}}</td>
+              {% if game.pid != None %}
+              <td><a href="{{ url_for('player', playerid=game.pid) }}">{{game.pid}}</a></td>
+              {% else %}
+              <td>{{game.pid}}</td>
+              {% endif %}
+              <td>{{game.message}}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
