@@ -1,47 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends 'base.html' %}
 
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Main</title>
-  <style>
-    code {
-      font-size: 3em;
-    }
+{% block title %}
+Home
+{% endblock %}
 
-    table,
-    th,
-    td {
-      border: 2px solid #000;
-    }
+{% block content %}
+<h2>Game Server IP</h2>
+<p class="text-danger fs-3">136.243.156.120:50804</p>
 
-    th,
-    td {
-      padding: 4px;
-    }
-  </style>
-</head>
-
-<body>
-  <h1><a href="/games">Games</a></h1>
-  <h1><a href="/players">Players</a></h1>
-  <h1>Game Server IP:</h1>
-  <code>136.243.156.120:50804</code>
-  <h3>Current Queue</h3>
-  <table>
+<h2>Current Queue</h2>
+<table class="table table-hover table-bordered">
+  <thead>
     <tr>
       <th>Game ID</th>
       <th>Player ID</th>
     </tr>
+  </thead>
+  <tbody>
+    {% if queue|length == 0 %}
+
+    <tr>
+      <td colspan="2" class="text-center text-muted">queue is empty</td>
+    </tr>
+
+    {% else %}
+
     {% for player in queue %}
     <tr>
       <td>{{player.gid}}</td>
-      <td><a href='/player/{{player.pid}}'>{{player.pid}}</a></td>
+      <td><a href="{{ url_for('player', playerid=player.pid) }}">{{player.pid}}</a></td>
     </tr>
     {% endfor %}
-  </table>
-</body>
 
-</html>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}
