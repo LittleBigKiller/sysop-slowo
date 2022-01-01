@@ -77,18 +77,20 @@ def games():
     )
     data0 = DB_CUR.fetchall()
 
-    DB_CUR.execute(
-        "SELECT gid,message FROM games WHERE message LIKE 'Word chosen as%' ORDER BY gid"
-    )
-    data1 = DB_CUR.fetchall()
-
     games = []
     for index, entry in enumerate(data0):
         new_dict = {}
         new_dict["gid"] = entry[0]
         new_dict["pidcount"] = entry[1]
+
+        DB_CUR.execute(
+            "SELECT gid,message FROM games WHERE message LIKE 'Word chosen as%' AND gid = ?",
+            [new_dict["gid"]],
+        )
+        data1 = DB_CUR.fetchone()
+
         try:
-            new_dict["word"] = data1[index][1].split(":")[1].rsplit()[0]
+            new_dict["word"] = data1[1].split(":")[1].rsplit()[0]
         except:
             new_dict["word"] = "-- no word chosen --"
         games.append(new_dict)
@@ -104,7 +106,9 @@ def game(gameid):
     games = []
     for entry in data:
         new_dict = {}
-        new_dict["timestamp"] = datetime.fromtimestamp(float(entry[0])).strftime("%Y-%m-%d %H:%M:%S.%f")
+        new_dict["timestamp"] = datetime.fromtimestamp(float(entry[0])).strftime(
+            "%Y-%m-%d %H:%M:%S.%f"
+        )
         new_dict["pid"] = entry[1]
         new_dict["message"] = entry[2]
         games.append(new_dict)
@@ -154,7 +158,9 @@ def player(playerid):
     players = []
     for entry in data:
         new_dict = {}
-        new_dict["timestamp"] = datetime.fromtimestamp(float(entry[0])).strftime("%Y-%m-%d %H:%M:%S.%f")
+        new_dict["timestamp"] = datetime.fromtimestamp(float(entry[0])).strftime(
+            "%Y-%m-%d %H:%M:%S.%f"
+        )
         new_dict["gid"] = entry[1]
         new_dict["points"] = entry[2]
         new_dict["attempts"] = entry[3]
