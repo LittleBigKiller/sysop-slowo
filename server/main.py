@@ -10,6 +10,7 @@ import threading
 import configparser
 
 from handlers import *
+from data_classes import *
 
 # ========================= #
 #  Funkcja tworzenia logów  #
@@ -181,14 +182,7 @@ game_queue = []
 sockets_to_purge = []
 messages_to_log = []
 
-messages_to_log.append(
-    {
-        "type": "queue",
-        "action": "purge",
-        "gid": None,
-        "pid": None,
-    }
-)
+messages_to_log.append(QueueLog("purge"))
 
 # ================ #
 #  Funkcje wątków  #
@@ -198,14 +192,7 @@ def f_queue():
         for game in game_queue:
             if socket in game["players"].keys():
                 system_log("ERR", f"Purging {game['players'][socket]['uid']}")
-                messages_to_log.append(
-                    {
-                        "type": "queue",
-                        "action": "rem",
-                        "gid": None,
-                        "pid": client["uid"],
-                    }
-                )
+                messages_to_log.append(QueueLog("rem", client["uid"]))
                 del game["players"][socket]
                 sockets_to_purge.remove(socket)
 
@@ -234,12 +221,7 @@ def f_queue():
                 f"Added player (id: {client['uid']}) to queued game (id: {last_game['time_queued']})",
             )
             messages_to_log.append(
-                {
-                    "type": "queue",
-                    "action": "add",
-                    "gid": last_game["time_queued"],
-                    "pid": client["uid"],
-                }
+                QueueLog("add", client["uid"], last_game["time_queued"])
             )
             client["queued"] = True
 
@@ -265,28 +247,14 @@ def f_queue():
 
         if len(game["players"].keys()) == MAX_PLAYERS:
             for player in game["players"].keys():
-                messages_to_log.append(
-                    {
-                        "type": "queue",
-                        "action": "rem",
-                        "gid": None,
-                        "pid": game["players"][player]["uid"],
-                    }
-                )
+                messages_to_log.append(QueueLog("rem", game["players"][player]["uid"]))
             start_game(game)
 
         elif (
             time_passed >= QUEUE_TIMEOUT and len(game["players"].keys()) >= MIN_PLAYERS
         ):
             for player in game["players"].keys():
-                messages_to_log.append(
-                    {
-                        "type": "queue",
-                        "action": "rem",
-                        "gid": None,
-                        "pid": game["players"][player]["uid"],
-                    }
-                )
+                messages_to_log.append(QueueLog("rem", game["players"][player]["uid"]))
             start_game(game)
 
 
@@ -300,60 +268,56 @@ def f_logger():
     messages_to_purge = []
 
     for message in messages_to_log:
-        if message["type"] == "game":
+        if isinstance(message, GameLog):
             cur.execute(
                 "INSERT INTO games(timestamp, gid, pid, message) VALUES (?, ?, ?, ?)",
                 (
-                    message["timestamp"],
-                    message["gid"],
-                    message["pid"],
-                    message["message"],
+                    message.timestamp,
+                    message.gid,
+                    message.pid,
+                    message.message,
                 ),
             )
             con.commit()
-            # print("game message", message["message"])
             messages_to_purge.append(message)
             pass
 
-        elif message["type"] == "player":
+        elif isinstance(message, PlayerLog):
             cur.execute(
                 "INSERT INTO players(timestamp, gid, pid, points, attempts, result) VALUES (?, ?, ?, ?, ?, ?)",
                 (
-                    message["timestamp"],
-                    message["gid"],
-                    message["pid"],
-                    message["points"],
-                    message["attempts"],
-                    message["result"],
+                    message.timestamp,
+                    message.gid,
+                    message.pid,
+                    message.points,
+                    message.attempts,
+                    message.result,
                 ),
             )
             con.commit()
-            # print("player result", message["result"])
             messages_to_purge.append(message)
             pass
 
-        elif message["type"] == "queue":
-            if message["action"] == "purge":
+        elif isinstance(message, QueueLog):
+            if message.action == "purge":
                 cur.execute("DELETE FROM queue")
                 con.commit()
-            elif message["action"] == "add":
+            elif message.action == "add":
                 cur.execute(
                     "INSERT INTO queue (gid, pid) VALUES (?, ?)",
-                    (message["gid"], message["pid"]),
+                    (message.gid, message.pid),
                 )
                 con.commit()
-            elif message["action"] == "rem":
+            elif message.action == "rem":
                 cur.execute(
                     "DELETE FROM queue WHERE pid = ?",
-                    [message["pid"]],
+                    [message.pid],
                 )
                 con.commit()
-            # print("queue mess", message)
             messages_to_purge.append(message)
             pass
 
         else:
-            # print(f"invalid message type: {message['type']}", message)
             messages_to_purge.append(message)
             pass
 
@@ -445,13 +409,11 @@ def f_game(gd):
         player["ingame"] = True
 
     messages_to_log.append(
-        {
-            "type": "game",
-            "timestamp": time.time(),
-            "gid": gd["time_queued"],
-            "pid": None,
-            "message": f"Game (id: {gd['time_queued']}) started with {len(gd['players'].values())} players",
-        }
+        GameLog(
+            time.time(),
+            gd["time_queued"],
+            f"Game (id: {gd['time_queued']}) started with {len(gd['players'].values())} players",
+        )
     )
 
     while gd["word"] == None:
@@ -461,13 +423,12 @@ def f_game(gd):
         wordsmith = list(gd["players"].keys())[0]
         system_log("GAME", f"Selecting {gd['players'][wordsmith]['uid']} as wordsmith")
         messages_to_log.append(
-            {
-                "type": "game",
-                "timestamp": time.time(),
-                "gid": gd["time_queued"],
-                "pid": gd["players"][wordsmith]["uid"],
-                "message": f"Player {gd['players'][wordsmith]['uid']} chosen as wordsmith",
-            }
+            GameLog(
+                time.time(),
+                gd["time_queued"],
+                f"Player {gd['players'][wordsmith]['uid']} chosen as wordsmith",
+                gd["players"][wordsmith]["uid"],
+            )
         )
 
         wordsmith.send("@\n".encode("utf-8"))
@@ -478,13 +439,12 @@ def f_game(gd):
                 "GAME", f"No reply from wordsmith in allotted time... Kicking..."
             )
             messages_to_log.append(
-                {
-                    "type": "game",
-                    "timestamp": time.time(),
-                    "gid": gd["time_queued"],
-                    "pid": gd["players"][wordsmith]["uid"],
-                    "message": f"Wordsmith (player: {gd['players'][wordsmith]['uid']}) timed out",
-                }
+                GameLog(
+                    time.time(),
+                    gd["time_queued"],
+                    f"Wordsmith (player: {gd['players'][wordsmith]['uid']}) timed out",
+                    gd["players"][wordsmith]["uid"],
+                )
             )
             wordsmith.close()
             sockets_to_purge.append(wordsmith)
@@ -497,13 +457,12 @@ def f_game(gd):
                     "GAME", f"Reply from wordsmith is not a valid word... Kicking..."
                 )
                 messages_to_log.append(
-                    {
-                        "type": "game",
-                        "timestamp": time.time(),
-                        "gid": gd["time_queued"],
-                        "pid": gd["players"][wordsmith]["uid"],
-                        "message": f"Wordsmith (player: {gd['players'][wordsmith]['uid']}) sent an invalid word: {repr(word)}",
-                    }
+                    GameLog(
+                        time.time(),
+                        gd["time_queued"],
+                        f"Wordsmith (player: {gd['players'][wordsmith]['uid']}) sent an invalid word: {repr(word)}",
+                        gd["players"][wordsmith]["uid"],
+                    )
                 )
                 wordsmith.close()
                 sockets_to_purge.append(wordsmith)
@@ -512,38 +471,27 @@ def f_game(gd):
             else:
                 system_log("GAME", f"Word successfully chosen as {word}")
                 messages_to_log.append(
-                    {
-                        "type": "game",
-                        "timestamp": time.time(),
-                        "gid": gd["time_queued"],
-                        "pid": None,
-                        "message": f"Word chosen as: {word}",
-                    }
+                    GameLog(time.time(), gd["time_queued"], f"Word chosen as: {word}")
                 )
                 gd["word"] = word
                 num_str = let_to_num(word)
                 system_log("GAME", f"Broadcasting number-string {num_str} to players")
                 messages_to_log.append(
-                    {
-                        "type": "game",
-                        "timestamp": time.time(),
-                        "gid": gd["time_queued"],
-                        "pid": None,
-                        "message": f"Numerical Hint is: {num_str}",
-                    }
+                    GameLog(
+                        time.time(), gd["time_queued"], f"Numerical Hint is: {num_str}"
+                    )
                 )
                 for socket in gd["players"].keys():
                     if not socket == wordsmith:
                         socket.send(let_to_num(word).encode("utf-8"))
                 system_log("GAME", f"Kicking the wordsmith because... Kicking...")
                 messages_to_log.append(
-                    {
-                        "type": "game",
-                        "timestamp": time.time(),
-                        "gid": gd["time_queued"],
-                        "pid": gd["players"][wordsmith]["uid"],
-                        "message": f"Kicking wordsmith (player: {gd['players'][wordsmith]['uid']})",
-                    }
+                    GameLog(
+                        time.time(),
+                        gd["time_queued"],
+                        f"Kicking wordsmith (player: {gd['players'][wordsmith]['uid']})",
+                        gd["players"][wordsmith]["uid"],
+                    )
                 )
                 wordsmith.close()
                 sockets_to_purge.append(wordsmith)
@@ -571,13 +519,7 @@ def f_game(gd):
             f"Game ended (id: {gd['time_queued']}) with a correct guess",
         )
         messages_to_log.append(
-            {
-                "type": "game",
-                "timestamp": time.time(),
-                "gid": gd["time_queued"],
-                "pid": None,
-                "message": "Game ended with a correct guess",
-            }
+            GameLog(time.time(), gd["time_queued"], "Game ended with a correct guess")
         )
     else:
         system_log(
@@ -585,13 +527,7 @@ def f_game(gd):
             f"Game ended (id: {gd['time_queued']}) with no correct guess",
         )
         messages_to_log.append(
-            {
-                "type": "game",
-                "timestamp": time.time(),
-                "gid": gd["time_queued"],
-                "pid": None,
-                "message": "Game ended with no correct guess",
-            }
+            GameLog(time.time(), gd["time_queued"], "Game ended with no correct guess")
         )
 
 
@@ -612,24 +548,22 @@ def f_player(gd, sock):
                 f"No reply from {gd['players'][sock]['uid']} in allotted time... Kicking...",
             )
             messages_to_log.append(
-                {
-                    "type": "game",
-                    "timestamp": time.time(),
-                    "gid": gd["time_queued"],
-                    "pid": gd["players"][sock]["uid"],
-                    "message": f"Player {gd['players'][sock]['uid']} timed out - kicked",
-                }
+                GameLog(
+                    time.time(),
+                    gd["time_queued"],
+                    f"Player {gd['players'][sock]['uid']} timed out - kicked",
+                    gd["players"][sock]["uid"],
+                )
             )
             messages_to_log.append(
-                {
-                    "type": "player",
-                    "timestamp": time.time(),
-                    "gid": gd["time_queued"],
-                    "pid": gd["players"][sock]["uid"],
-                    "points": gd["players"][sock]["points"],
-                    "attempts": try_ctr,
-                    "result": "Timed out",
-                }
+                PlayerLog(
+                    time.time(),
+                    gd["time_queued"],
+                    gd["players"][sock]["uid"],
+                    gd["players"][sock]["points"],
+                    try_ctr,
+                    "Timed out",
+                )
             )
 
             sock.close()
@@ -645,13 +579,12 @@ def f_player(gd, sock):
                     f"Reply from {gd['players'][sock]['uid']} took too long... Ignoring...",
                 )
                 messages_to_log.append(
-                    {
-                        "type": "game",
-                        "timestamp": time.time(),
-                        "gid": gd["time_queued"],
-                        "pid": gd["players"][sock]["uid"],
-                        "message": f"Player {gd['players'][sock]['uid']} guessed too late - ignored",
-                    }
+                    GameLog(
+                        time.time(),
+                        gd["time_queued"],
+                        f"Player {gd['players'][sock]['uid']} guessed too late - ignored",
+                        gd["players"][sock]["uid"],
+                    )
                 )
                 sock.send("#\n".encode("utf-8"))
                 return None
@@ -675,24 +608,22 @@ def f_player(gd, sock):
                                 f"Player {gd['players'][sock]['uid']} submitted a malformed guess... Kicking...",
                             )
                             messages_to_log.append(
-                                {
-                                    "type": "game",
-                                    "timestamp": time.time(),
-                                    "gid": gd["time_queued"],
-                                    "pid": gd["players"][sock]["uid"],
-                                    "message": f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
-                                }
+                                GameLog(
+                                    time.time(),
+                                    gd["time_queued"],
+                                    f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
+                                    gd["players"][sock]["uid"],
+                                )
                             )
                             messages_to_log.append(
-                                {
-                                    "type": "player",
-                                    "timestamp": time.time(),
-                                    "gid": gd["time_queued"],
-                                    "pid": gd["players"][sock]["uid"],
-                                    "points": gd["players"][sock]["points"],
-                                    "attempts": try_ctr,
-                                    "result": "Malformed guess",
-                                }
+                                PlayerLog(
+                                    time.time(),
+                                    gd["time_queued"],
+                                    gd["players"][sock]["uid"],
+                                    gd["players"][sock]["points"],
+                                    try_ctr,
+                                    "Malformed guess",
+                                )
                             )
                             # print('malf cmd', cmd)
                             sock.close()
@@ -716,24 +647,22 @@ def f_player(gd, sock):
                             f"Player {gd['players'][sock]['uid']} submitted a malformed guess... Kicking...",
                         )
                         messages_to_log.append(
-                            {
-                                "type": "game",
-                                "timestamp": time.time(),
-                                "gid": gd["time_queued"],
-                                "pid": gd["players"][sock]["uid"],
-                                "message": f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
-                            }
+                            GameLog(
+                                time.time(),
+                                gd["time_queued"],
+                                f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
+                                gd["players"][sock]["uid"],
+                            )
                         )
                         messages_to_log.append(
-                            {
-                                "type": "player",
-                                "timestamp": time.time(),
-                                "gid": gd["time_queued"],
-                                "pid": gd["players"][sock]["uid"],
-                                "points": gd["players"][sock]["points"],
-                                "attempts": try_ctr,
-                                "result": "Malformed guess",
-                            }
+                            PlayerLog(
+                                time.time(),
+                                gd["time_queued"],
+                                gd["players"][sock]["uid"],
+                                gd["players"][sock]["points"],
+                                try_ctr,
+                                "Malformed guess",
+                            )
                         )
                         # print('malf cmd', cmd)
                         sock.close()
@@ -756,13 +685,12 @@ def f_player(gd, sock):
                             f"Player {gd['players'][sock]['uid']} guessed the word ({guess})!",
                         )
                         messages_to_log.append(
-                            {
-                                "type": "game",
-                                "timestamp": time.time(),
-                                "gid": gd["time_queued"],
-                                "pid": gd["players"][sock]["uid"],
-                                "message": f"Player {gd['players'][sock]['uid']} guessed the word ({guess}) - +5 points",
-                            }
+                            GameLog(
+                                time.time(),
+                                gd["time_queued"],
+                                f"Player {gd['players'][sock]['uid']} guessed the word ({guess}) - +5 points",
+                                gd["players"][sock]["uid"],
+                            )
                         )
                         sock.send("=\n".encode("utf-8"))
                         time.sleep(0.05)
@@ -775,15 +703,14 @@ def f_player(gd, sock):
                             f"Player {gd['players'][sock]['uid']} achieved a total of {gd['players'][sock]['points']} points!",
                         )
                         messages_to_log.append(
-                            {
-                                "type": "player",
-                                "timestamp": time.time(),
-                                "gid": gd["time_queued"],
-                                "pid": gd["players"][sock]["uid"],
-                                "points": gd["players"][sock]["points"],
-                                "attempts": try_ctr,
-                                "result": "Guessed the word",
-                            }
+                            PlayerLog(
+                                time.time(),
+                                gd["time_queued"],
+                                gd["players"][sock]["uid"],
+                                gd["players"][sock]["points"],
+                                try_ctr,
+                                "Guessed the word",
+                            )
                         )
                         sock.close()
                         sockets_to_purge.append(sock)
@@ -815,13 +742,12 @@ def f_player(gd, sock):
                                     f"Player {gd['players'][sock]['uid']} guessed a letter ({guess})!",
                                 )
                                 messages_to_log.append(
-                                    {
-                                        "type": "game",
-                                        "timestamp": time.time(),
-                                        "gid": gd["time_queued"],
-                                        "pid": gd["players"][sock]["uid"],
-                                        "message": f"Player {gd['players'][sock]['uid']} guessed a letter ({guess}) - +{hit_count} points",
-                                    }
+                                    GameLog(
+                                        time.time(),
+                                        gd["time_queued"],
+                                        f"Player {gd['players'][sock]['uid']} guessed a letter ({guess}) - +{hit_count} points",
+                                        gd["players"][sock]["uid"],
+                                    )
                                 )
                                 sock.send("=\n".encode("utf-8"))
                                 time.sleep(0.05)
@@ -846,24 +772,22 @@ def f_player(gd, sock):
                             f"Player {gd['players'][sock]['uid']} submitted a malformed guess! Kicking...",
                         )
                         messages_to_log.append(
-                            {
-                                "type": "game",
-                                "timestamp": time.time(),
-                                "gid": gd["time_queued"],
-                                "pid": gd["players"][sock]["uid"],
-                                "message": f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
-                            }
+                            GameLog(
+                                time.time(),
+                                gd["time_queued"],
+                                f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
+                                gd["players"][sock]["uid"],
+                            )
                         )
                         messages_to_log.append(
-                            {
-                                "type": "player",
-                                "timestamp": time.time(),
-                                "gid": gd["time_queued"],
-                                "pid": gd["players"][sock]["uid"],
-                                "points": gd["players"][sock]["points"],
-                                "attempts": try_ctr,
-                                "result": "Malformed guess",
-                            }
+                            PlayerLog(
+                                time.time(),
+                                gd["time_queued"],
+                                gd["players"][sock]["uid"],
+                                gd["players"][sock]["points"],
+                                try_ctr,
+                                "Malformed guess",
+                            )
                         )
                         # print('malf0 repr cmd', repr(cmd))
                         # print('malf0 repr guess', repr(guess))
@@ -879,24 +803,22 @@ def f_player(gd, sock):
                         f"Player {gd['players'][sock]['uid']} submitted a malformed guess! Kicking...",
                     )
                     messages_to_log.append(
-                        {
-                            "type": "game",
-                            "timestamp": time.time(),
-                            "gid": gd["time_queued"],
-                            "pid": gd["players"][sock]["uid"],
-                            "message": f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
-                        }
+                        GameLog(
+                            time.time(),
+                            gd["time_queued"],
+                            f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
+                            gd["players"][sock]["uid"],
+                        )
                     )
                     messages_to_log.append(
-                        {
-                            "type": "player",
-                            "timestamp": time.time(),
-                            "gid": gd["time_queued"],
-                            "pid": gd["players"][sock]["uid"],
-                            "points": gd["players"][sock]["points"],
-                            "attempts": try_ctr,
-                            "result": "Malformed guess",
-                        }
+                        PlayerLog(
+                            time.time(),
+                            gd["time_queued"],
+                            gd["players"][sock]["uid"],
+                            gd["players"][sock]["points"],
+                            try_ctr,
+                            "Malformed guess",
+                        )
                     )
                     # print('malf1 repr cmd', repr(cmd))
                     # print('malf1 repr guess', repr(guess))
@@ -912,15 +834,14 @@ def f_player(gd, sock):
             f"Player {gd['players'][sock]['uid']} ran out of guesses! Kicking...",
         )
         messages_to_log.append(
-            {
-                "type": "player",
-                "timestamp": time.time(),
-                "gid": gd["time_queued"],
-                "pid": gd["players"][sock]["uid"],
-                "points": gd["players"][sock]["points"],
-                "attempts": try_ctr,
-                "result": "Ran out of guesses",
-            }
+            PlayerLog(
+                time.time(),
+                gd["time_queued"],
+                gd["players"][sock]["uid"],
+                gd["players"][sock]["points"],
+                try_ctr,
+                "Ran out of guesses",
+            )
         )
 
     else:
@@ -929,15 +850,14 @@ def f_player(gd, sock):
             f"Player {gd['players'][sock]['uid']} ran out of time, someone else guessed! Kicking...",
         )
         messages_to_log.append(
-            {
-                "type": "player",
-                "timestamp": time.time(),
-                "gid": gd["time_queued"],
-                "pid": gd["players"][sock]["uid"],
-                "points": gd["players"][sock]["points"],
-                "attempts": try_ctr,
-                "result": "Someone else guessed",
-            }
+            PlayerLog(
+                time.time(),
+                gd["time_queued"],
+                gd["players"][sock]["uid"],
+                gd["players"][sock]["points"],
+                try_ctr,
+                "Someone else guessed",
+            )
         )
         sock.send("=\n".encode("utf-8"))
         time.sleep(0.05)
