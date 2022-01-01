@@ -95,7 +95,6 @@ except configparser.ParsingError:
 #  Wczytanie stałych z configa  #
 # ============================= #
 try:
-    WORD_SET_IN_RAM = config["APP"]["WORD_SET_IN_RAM"] == "True"
     DICT_FILE = str(config["APP"]["DICT_FILE"])
     DB_FILE = str(config["APP"]["DB_FILE"])
 
@@ -122,28 +121,13 @@ system_log("INIT", "Finished loading configuration from file")
 # =============== #
 #  Init słownika  #
 # =============== #
-if WORD_SET_IN_RAM:
-    system_log("INIT", f"Loading WORD_SET from file '{DICT_FILE}'...")
+try:
+    open(os.path.join(ROOT_DIR, DICT_FILE))
+except FileNotFoundError:
+    system_log("ERR", f"Failed to access WORD_SET, file '{DICT_FILE}' is missing")
+    sys.exit(1)
 
-    try:
-        with open(os.path.join(ROOT_DIR, DICT_FILE)) as wfile:
-            for line in wfile:
-                WORD_SET.add(line.rstrip())
-    except FileNotFoundError:
-        system_log("ERR", f"Failed to load WORD_SET, file '{DICT_FILE}' is missing")
-        sys.exit(1)
-
-    # WORD_SET.add("długonoga")
-
-    system_log("INIT", f"Finished loading WORD_SET with {len(WORD_SET)} words")
-else:
-    try:
-        open(os.path.join(ROOT_DIR, DICT_FILE))
-    except FileNotFoundError:
-        system_log("ERR", f"Failed to access WORD_SET, file '{DICT_FILE}' is missing")
-        sys.exit(1)
-
-    system_log("INIT", f"Using WORD_SET from file insead of loading into RAM")
+system_log("INIT", f"Using WORD_SET from file '{DICT_FILE}'")
 
 
 # ================== #
@@ -899,13 +883,10 @@ def pos_in_word(word, letter):
 
 
 def check_in_wordset(word):
-    if WORD_SET_IN_RAM:
-        return word in WORD_SET
-    else:
-        with open(os.path.join(ROOT_DIR, DICT_FILE)) as wfile, mmap.mmap(
-            wfile.fileno(), 0, access=mmap.ACCESS_READ
-        ) as s:
-            return s.find(word.encode("utf-8")) != -1
+    with open(os.path.join(ROOT_DIR, DICT_FILE)) as wfile, mmap.mmap(
+        wfile.fileno(), 0, access=mmap.ACCESS_READ
+    ) as s:
+        return s.find(word.encode("utf-8")) != -1
 
 
 # ==================== #
@@ -999,7 +980,7 @@ while True:
 
             user = clients[notified_socket]
 
-            print(f'Received message from {user.uid}: {repr(msg)}')
+            print(f"Received message from {user.uid}: {repr(msg)}")
 
     for notified_socket in exception_sockets:
         sockets_list.remove(notified_socket)
