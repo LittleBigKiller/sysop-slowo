@@ -190,46 +190,40 @@ messages_to_log.append(QueueLog("purge"))
 def f_queue():
     for socket in sockets_to_purge:
         for game in game_queue:
-            if socket in game["players"].keys():
-                system_log("ERR", f"Purging {game['players'][socket]['uid']}")
+            if socket in game.players.keys():
+                system_log("ERR", f"Purging {game.players[socket]['uid']}")
                 messages_to_log.append(QueueLog("rem", client["uid"]))
-                del game["players"][socket]
+                del game.players[socket]
                 sockets_to_purge.remove(socket)
 
     for socket, client in clients.items():
         if not client["queued"]:
             if len(game_queue) == 0:
-                new_game = {"time_queued": int(time.time()), "players": {}}
+                new_game = Game(int(time.time()))
                 game_queue.append(new_game)
-                system_log(
-                    "INFO", f"Created New Game with ID: {new_game['time_queued']}"
-                )
+                system_log("INFO", f"Created New Game with ID: {new_game.gid}")
 
             last_game = game_queue[-1]
 
-            if len(last_game["players"].keys()) == MAX_PLAYERS:
-                new_game = {"time_queued": int(time.time()), "players": {}}
+            if len(last_game.players.keys()) == MAX_PLAYERS:
+                new_game = Game(int(time.time()))
                 game_queue.append(new_game)
-                system_log(
-                    "INFO", f"Created New Game with ID: {new_game['time_queued']}"
-                )
+                system_log("INFO", f"Created New Game with ID: {new_game.gid}")
                 last_game = new_game
 
-            last_game["players"][socket] = client
+            last_game.players[socket] = client
             system_log(
                 "INFO",
-                f"Added player (id: {client['uid']}) to queued game (id: {last_game['time_queued']})",
+                f"Added player (id: {client['uid']}) to queued game (id: {last_game.gid})",
             )
-            messages_to_log.append(
-                QueueLog("add", client["uid"], last_game["time_queued"])
-            )
+            messages_to_log.append(QueueLog("add", client["uid"], last_game.gid))
             client["queued"] = True
 
     for game in game_queue:
-        time_passed = int(time.time() - game["time_queued"])
+        time_passed = int(time.time() - game.gid)
 
         to_purge = []
-        for player in game["players"].keys():
+        for player in game.players.keys():
             rs, _, _ = select.select([player], [], [], 0.01)
 
             if rs and not len(player.recv(1024)):
@@ -238,23 +232,21 @@ def f_queue():
         for player in to_purge:
             system_log(
                 "INFO",
-                f"Closed connection from: {game['players'][player]['uid']}",
+                f"Closed connection from: {game.players[player]['uid']}",
             )
             player.close()
             sockets_to_purge.append(player)
-            del game["players"][player]
+            del game.players[player]
             del clients[player]
 
-        if len(game["players"].keys()) == MAX_PLAYERS:
-            for player in game["players"].keys():
-                messages_to_log.append(QueueLog("rem", game["players"][player]["uid"]))
+        if len(game.players.keys()) == MAX_PLAYERS:
+            for player in game.players.keys():
+                messages_to_log.append(QueueLog("rem", game.players[player]["uid"]))
             start_game(game)
 
-        elif (
-            time_passed >= QUEUE_TIMEOUT and len(game["players"].keys()) >= MIN_PLAYERS
-        ):
-            for player in game["players"].keys():
-                messages_to_log.append(QueueLog("rem", game["players"][player]["uid"]))
+        elif time_passed >= QUEUE_TIMEOUT and len(game.players.keys()) >= MIN_PLAYERS:
+            for player in game.players.keys():
+                messages_to_log.append(QueueLog("rem", game.players[player]["uid"]))
             start_game(game)
 
 
@@ -403,31 +395,31 @@ def f_login(client_socket, client_address):
 
 
 def f_game(gd):
-    gd["ended"] = False
-    gd["word"] = None
-    for player in gd["players"].values():
+    gd.ended = False
+    gd.word = None
+    for player in gd.players.values():
         player["ingame"] = True
 
     messages_to_log.append(
         GameLog(
             time.time(),
-            gd["time_queued"],
-            f"Game (id: {gd['time_queued']}) started with {len(gd['players'].values())} players",
+            gd.gid,
+            f"Game (id: {gd.gid}) started with {len(gd.players.values())} players",
         )
     )
 
-    while gd["word"] == None:
-        if not len(gd["players"].values()):
+    while gd.word == None:
+        if not len(gd.players.values()):
             break
 
-        wordsmith = list(gd["players"].keys())[0]
-        system_log("GAME", f"Selecting {gd['players'][wordsmith]['uid']} as wordsmith")
+        wordsmith = list(gd.players.keys())[0]
+        system_log("GAME", f"Selecting {gd.players[wordsmith]['uid']} as wordsmith")
         messages_to_log.append(
             GameLog(
                 time.time(),
-                gd["time_queued"],
-                f"Player {gd['players'][wordsmith]['uid']} chosen as wordsmith",
-                gd["players"][wordsmith]["uid"],
+                gd.gid,
+                f"Player {gd.players[wordsmith]['uid']} chosen as wordsmith",
+                gd.players[wordsmith]["uid"],
             )
         )
 
@@ -441,14 +433,14 @@ def f_game(gd):
             messages_to_log.append(
                 GameLog(
                     time.time(),
-                    gd["time_queued"],
-                    f"Wordsmith (player: {gd['players'][wordsmith]['uid']}) timed out",
-                    gd["players"][wordsmith]["uid"],
+                    gd.gid,
+                    f"Wordsmith (player: {gd.players[wordsmith]['uid']}) timed out",
+                    gd.players[wordsmith]["uid"],
                 )
             )
             wordsmith.close()
             sockets_to_purge.append(wordsmith)
-            del gd["players"][wordsmith]
+            del gd.players[wordsmith]
             del clients[wordsmith]
         else:
             word = wordsmith.recv(1024).decode("utf-8").rstrip()
@@ -459,52 +451,50 @@ def f_game(gd):
                 messages_to_log.append(
                     GameLog(
                         time.time(),
-                        gd["time_queued"],
-                        f"Wordsmith (player: {gd['players'][wordsmith]['uid']}) sent an invalid word: {repr(word)}",
-                        gd["players"][wordsmith]["uid"],
+                        gd.gid,
+                        f"Wordsmith (player: {gd.players[wordsmith]['uid']}) sent an invalid word: {repr(word)}",
+                        gd.players[wordsmith]["uid"],
                     )
                 )
                 wordsmith.close()
                 sockets_to_purge.append(wordsmith)
-                del gd["players"][wordsmith]
+                del gd.players[wordsmith]
                 del clients[wordsmith]
             else:
                 system_log("GAME", f"Word successfully chosen as {word}")
                 messages_to_log.append(
-                    GameLog(time.time(), gd["time_queued"], f"Word chosen as: {word}")
+                    GameLog(time.time(), gd.gid, f"Word chosen as: {word}")
                 )
-                gd["word"] = word
+                gd.word = word
                 num_str = let_to_num(word)
                 system_log("GAME", f"Broadcasting number-string {num_str} to players")
                 messages_to_log.append(
-                    GameLog(
-                        time.time(), gd["time_queued"], f"Numerical Hint is: {num_str}"
-                    )
+                    GameLog(time.time(), gd.gid, f"Numerical Hint is: {num_str}")
                 )
-                for socket in gd["players"].keys():
+                for socket in gd.players.keys():
                     if not socket == wordsmith:
                         socket.send(let_to_num(word).encode("utf-8"))
                 system_log("GAME", f"Kicking the wordsmith because... Kicking...")
                 messages_to_log.append(
                     GameLog(
                         time.time(),
-                        gd["time_queued"],
-                        f"Kicking wordsmith (player: {gd['players'][wordsmith]['uid']})",
-                        gd["players"][wordsmith]["uid"],
+                        gd.gid,
+                        f"Kicking wordsmith (player: {gd.players[wordsmith]['uid']})",
+                        gd.players[wordsmith]["uid"],
                     )
                 )
                 wordsmith.close()
                 sockets_to_purge.append(wordsmith)
-                del gd["players"][wordsmith]
+                del gd.players[wordsmith]
                 del clients[wordsmith]
 
     psocket = []
-    for socket, player in gd["players"].items():
+    for socket, player in gd.players.items():
         t_player = PlayerInGameHandler(f_player, gd, socket)
         psocket.append(socket)
         t_player.start()
 
-    while not gd["ended"]:
+    while not gd.ended:
         just_end = True
         for socket in psocket:
             if socket.fileno() != -1:
@@ -513,21 +503,21 @@ def f_game(gd):
         if just_end:
             break
 
-    if gd["ended"]:
+    if gd.ended:
         system_log(
             "GAME",
-            f"Game ended (id: {gd['time_queued']}) with a correct guess",
+            f"Game ended (id: {gd.gid}) with a correct guess",
         )
         messages_to_log.append(
-            GameLog(time.time(), gd["time_queued"], "Game ended with a correct guess")
+            GameLog(time.time(), gd.gid, "Game ended with a correct guess")
         )
     else:
         system_log(
             "GAME",
-            f"Game ended (id: {gd['time_queued']}) with no correct guess",
+            f"Game ended (id: {gd.gid}) with no correct guess",
         )
         messages_to_log.append(
-            GameLog(time.time(), gd["time_queued"], "Game ended with no correct guess")
+            GameLog(time.time(), gd.gid, "Game ended with no correct guess")
         )
 
 
@@ -535,7 +525,7 @@ def f_player(gd, sock):
     try_ctr = 0
 
     while try_ctr < MAX_GUESS_COUNT:
-        if gd["ended"]:
+        if gd.ended:
             break
 
         try_ctr += 1
@@ -545,22 +535,22 @@ def f_player(gd, sock):
         if not rs:
             system_log(
                 "GAME",
-                f"No reply from {gd['players'][sock]['uid']} in allotted time... Kicking...",
+                f"No reply from {gd.players[sock]['uid']} in allotted time... Kicking...",
             )
             messages_to_log.append(
                 GameLog(
                     time.time(),
-                    gd["time_queued"],
-                    f"Player {gd['players'][sock]['uid']} timed out - kicked",
-                    gd["players"][sock]["uid"],
+                    gd.gid,
+                    f"Player {gd.players[sock]['uid']} timed out - kicked",
+                    gd.players[sock]["uid"],
                 )
             )
             messages_to_log.append(
                 PlayerLog(
                     time.time(),
-                    gd["time_queued"],
-                    gd["players"][sock]["uid"],
-                    gd["players"][sock]["points"],
+                    gd.gid,
+                    gd.players[sock]["uid"],
+                    gd.players[sock]["points"],
                     try_ctr,
                     "Timed out",
                 )
@@ -568,7 +558,7 @@ def f_player(gd, sock):
 
             sock.close()
             sockets_to_purge.append(sock)
-            del gd["players"][sock]
+            del gd.players[sock]
             del clients[sock]
             return None
 
@@ -576,14 +566,14 @@ def f_player(gd, sock):
             if time.time() - time_pre > GUESS_MISS_TIMEOUT:
                 system_log(
                     "GAME",
-                    f"Reply from {gd['players'][sock]['uid']} took too long... Ignoring...",
+                    f"Reply from {gd.players[sock]['uid']} took too long... Ignoring...",
                 )
                 messages_to_log.append(
                     GameLog(
                         time.time(),
-                        gd["time_queued"],
-                        f"Player {gd['players'][sock]['uid']} guessed too late - ignored",
-                        gd["players"][sock]["uid"],
+                        gd.gid,
+                        f"Player {gd.players[sock]['uid']} guessed too late - ignored",
+                        gd.players[sock]["uid"],
                     )
                 )
                 sock.send("#\n".encode("utf-8"))
@@ -605,22 +595,22 @@ def f_player(gd, sock):
                         if not rs:
                             system_log(
                                 "GAME",
-                                f"Player {gd['players'][sock]['uid']} submitted a malformed guess... Kicking...",
+                                f"Player {gd.players[sock]['uid']} submitted a malformed guess... Kicking...",
                             )
                             messages_to_log.append(
                                 GameLog(
                                     time.time(),
-                                    gd["time_queued"],
-                                    f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
-                                    gd["players"][sock]["uid"],
+                                    gd.gid,
+                                    f"Player {gd.players[sock]['uid']} submitted a malformed guess - kicked",
+                                    gd.players[sock]["uid"],
                                 )
                             )
                             messages_to_log.append(
                                 PlayerLog(
                                     time.time(),
-                                    gd["time_queued"],
-                                    gd["players"][sock]["uid"],
-                                    gd["players"][sock]["points"],
+                                    gd.gid,
+                                    gd.players[sock]["uid"],
+                                    gd.players[sock]["points"],
                                     try_ctr,
                                     "Malformed guess",
                                 )
@@ -628,7 +618,7 @@ def f_player(gd, sock):
                             # print('malf cmd', cmd)
                             sock.close()
                             sockets_to_purge.append(sock)
-                            del gd["players"][sock]
+                            del gd.players[sock]
                             del clients[sock]
                             return None
 
@@ -644,22 +634,22 @@ def f_player(gd, sock):
                     if not rs:
                         system_log(
                             "GAME",
-                            f"Player {gd['players'][sock]['uid']} submitted a malformed guess... Kicking...",
+                            f"Player {gd.players[sock]['uid']} submitted a malformed guess... Kicking...",
                         )
                         messages_to_log.append(
                             GameLog(
                                 time.time(),
-                                gd["time_queued"],
-                                f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
-                                gd["players"][sock]["uid"],
+                                gd.gid,
+                                f"Player {gd.players[sock]['uid']} submitted a malformed guess - kicked",
+                                gd.players[sock]["uid"],
                             )
                         )
                         messages_to_log.append(
                             PlayerLog(
                                 time.time(),
-                                gd["time_queued"],
-                                gd["players"][sock]["uid"],
-                                gd["players"][sock]["points"],
+                                gd.gid,
+                                gd.players[sock]["uid"],
+                                gd.players[sock]["points"],
                                 try_ctr,
                                 "Malformed guess",
                             )
@@ -667,7 +657,7 @@ def f_player(gd, sock):
                         # print('malf cmd', cmd)
                         sock.close()
                         sockets_to_purge.append(sock)
-                        del gd["players"][sock]
+                        del gd.players[sock]
                         del clients[sock]
                         return None
 
@@ -677,44 +667,44 @@ def f_player(gd, sock):
                 # print("repr guess1", repr(guess))
 
                 if cmd == "=":
-                    if guess == gd["word"]:
-                        gd["ended"] = True
-                        gd["players"][sock]["points"] += 5
+                    if guess == gd.word:
+                        gd.ended = True
+                        gd.players[sock]["points"] += 5
                         system_log(
                             "GAME",
-                            f"Player {gd['players'][sock]['uid']} guessed the word ({guess})!",
+                            f"Player {gd.players[sock]['uid']} guessed the word ({guess})!",
                         )
                         messages_to_log.append(
                             GameLog(
                                 time.time(),
-                                gd["time_queued"],
-                                f"Player {gd['players'][sock]['uid']} guessed the word ({guess}) - +5 points",
-                                gd["players"][sock]["uid"],
+                                gd.gid,
+                                f"Player {gd.players[sock]['uid']} guessed the word ({guess}) - +5 points",
+                                gd.players[sock]["uid"],
                             )
                         )
                         sock.send("=\n".encode("utf-8"))
                         time.sleep(0.05)
-                        sock.send(f"{gd['players'][sock]['points']}\n".encode("utf-8"))
+                        sock.send(f"{gd.players[sock]['points']}\n".encode("utf-8"))
                         time.sleep(0.05)
                         sock.send("?\n".encode("utf-8"))
                         time.sleep(0.05)
                         system_log(
                             "GAME",
-                            f"Player {gd['players'][sock]['uid']} achieved a total of {gd['players'][sock]['points']} points!",
+                            f"Player {gd.players[sock]['uid']} achieved a total of {gd.players[sock]['points']} points!",
                         )
                         messages_to_log.append(
                             PlayerLog(
                                 time.time(),
-                                gd["time_queued"],
-                                gd["players"][sock]["uid"],
-                                gd["players"][sock]["points"],
+                                gd.gid,
+                                gd.players[sock]["uid"],
+                                gd.players[sock]["points"],
                                 try_ctr,
                                 "Guessed the word",
                             )
                         )
                         sock.close()
                         sockets_to_purge.append(sock)
-                        del gd["players"][sock]
+                        del gd.players[sock]
                         del clients[sock]
                         return None
 
@@ -724,43 +714,41 @@ def f_player(gd, sock):
 
                 elif cmd == "+":
                     if len(guess) == 1:
-                        if not guess in gd["players"][sock]["guesses"]:
-                            hit_count = gd["word"].count(guess)
-                            gd["players"][sock]["guesses"].append(guess)
+                        if not guess in gd.players[sock]["guesses"]:
+                            hit_count = gd.word.count(guess)
+                            gd.players[sock]["guesses"].append(guess)
 
                             if hit_count == 0:
                                 system_log(
                                     "GAME",
-                                    f"Player {gd['players'][sock]['uid']} did not guess a letter ({guess})!",
+                                    f"Player {gd.players[sock]['uid']} did not guess a letter ({guess})!",
                                 )
                                 sock.send("!\n".encode("utf-8"))
                                 continue
                             else:
-                                gd["players"][sock]["points"] += hit_count
+                                gd.players[sock]["points"] += hit_count
                                 system_log(
                                     "GAME",
-                                    f"Player {gd['players'][sock]['uid']} guessed a letter ({guess})!",
+                                    f"Player {gd.players[sock]['uid']} guessed a letter ({guess})!",
                                 )
                                 messages_to_log.append(
                                     GameLog(
                                         time.time(),
-                                        gd["time_queued"],
-                                        f"Player {gd['players'][sock]['uid']} guessed a letter ({guess}) - +{hit_count} points",
-                                        gd["players"][sock]["uid"],
+                                        gd.gid,
+                                        f"Player {gd.players[sock]['uid']} guessed a letter ({guess}) - +{hit_count} points",
+                                        gd.players[sock]["uid"],
                                     )
                                 )
                                 sock.send("=\n".encode("utf-8"))
                                 time.sleep(0.05)
                                 sock.send(
-                                    f"{pos_in_word(gd['word'], guess)}\n".encode(
-                                        "utf-8"
-                                    )
+                                    f"{pos_in_word(gd.word, guess)}\n".encode("utf-8")
                                 )
                                 continue
                         else:
                             system_log(
                                 "GAME",
-                                f"Player {gd['players'][sock]['uid']} guessed the same letter ({guess}) again! Nope, won't work!",
+                                f"Player {gd.players[sock]['uid']} guessed the same letter ({guess}) again! Nope, won't work!",
                             )
                             # print('same repr guess', repr(guess))
                             sock.send("!\n".encode("utf-8"))
@@ -769,22 +757,22 @@ def f_player(gd, sock):
                     else:
                         system_log(
                             "GAME",
-                            f"Player {gd['players'][sock]['uid']} submitted a malformed guess! Kicking...",
+                            f"Player {gd.players[sock]['uid']} submitted a malformed guess! Kicking...",
                         )
                         messages_to_log.append(
                             GameLog(
                                 time.time(),
-                                gd["time_queued"],
-                                f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
-                                gd["players"][sock]["uid"],
+                                gd.gid,
+                                f"Player {gd.players[sock]['uid']} submitted a malformed guess - kicked",
+                                gd.players[sock]["uid"],
                             )
                         )
                         messages_to_log.append(
                             PlayerLog(
                                 time.time(),
-                                gd["time_queued"],
-                                gd["players"][sock]["uid"],
-                                gd["players"][sock]["points"],
+                                gd.gid,
+                                gd.players[sock]["uid"],
+                                gd.players[sock]["points"],
                                 try_ctr,
                                 "Malformed guess",
                             )
@@ -793,29 +781,29 @@ def f_player(gd, sock):
                         # print('malf0 repr guess', repr(guess))
                         sock.close()
                         sockets_to_purge.append(sock)
-                        del gd["players"][sock]
+                        del gd.players[sock]
                         del clients[sock]
                         return None
 
                 else:
                     system_log(
                         "GAME",
-                        f"Player {gd['players'][sock]['uid']} submitted a malformed guess! Kicking...",
+                        f"Player {gd.players[sock]['uid']} submitted a malformed guess! Kicking...",
                     )
                     messages_to_log.append(
                         GameLog(
                             time.time(),
-                            gd["time_queued"],
-                            f"Player {gd['players'][sock]['uid']} submitted a malformed guess - kicked",
-                            gd["players"][sock]["uid"],
+                            gd.gid,
+                            f"Player {gd.players[sock]['uid']} submitted a malformed guess - kicked",
+                            gd.players[sock]["uid"],
                         )
                     )
                     messages_to_log.append(
                         PlayerLog(
                             time.time(),
-                            gd["time_queued"],
-                            gd["players"][sock]["uid"],
-                            gd["players"][sock]["points"],
+                            gd.gid,
+                            gd.players[sock]["uid"],
+                            gd.players[sock]["points"],
                             try_ctr,
                             "Malformed guess",
                         )
@@ -824,21 +812,21 @@ def f_player(gd, sock):
                     # print('malf1 repr guess', repr(guess))
                     sock.close()
                     sockets_to_purge.append(sock)
-                    del gd["players"][sock]
+                    del gd.players[sock]
                     del clients[sock]
                     return None
 
     if try_ctr == MAX_GUESS_COUNT:
         system_log(
             "GAME",
-            f"Player {gd['players'][sock]['uid']} ran out of guesses! Kicking...",
+            f"Player {gd.players[sock]['uid']} ran out of guesses! Kicking...",
         )
         messages_to_log.append(
             PlayerLog(
                 time.time(),
-                gd["time_queued"],
-                gd["players"][sock]["uid"],
-                gd["players"][sock]["points"],
+                gd.gid,
+                gd.players[sock]["uid"],
+                gd.players[sock]["points"],
                 try_ctr,
                 "Ran out of guesses",
             )
@@ -847,28 +835,28 @@ def f_player(gd, sock):
     else:
         system_log(
             "GAME",
-            f"Player {gd['players'][sock]['uid']} ran out of time, someone else guessed! Kicking...",
+            f"Player {gd.players[sock]['uid']} ran out of time, someone else guessed! Kicking...",
         )
         messages_to_log.append(
             PlayerLog(
                 time.time(),
-                gd["time_queued"],
-                gd["players"][sock]["uid"],
-                gd["players"][sock]["points"],
+                gd.gid,
+                gd.players[sock]["uid"],
+                gd.players[sock]["points"],
                 try_ctr,
                 "Someone else guessed",
             )
         )
         sock.send("=\n".encode("utf-8"))
         time.sleep(0.05)
-        sock.send(f"{gd['players'][sock]['points']}\n".encode("utf-8"))
+        sock.send(f"{gd.players[sock]['points']}\n".encode("utf-8"))
         time.sleep(0.05)
         sock.send("?\n".encode("utf-8"))
         time.sleep(0.05)
 
     sock.close()
     sockets_to_purge.append(sock)
-    del gd["players"][sock]
+    del gd.players[sock]
     del clients[sock]
 
 
@@ -876,7 +864,7 @@ def f_player(gd, sock):
 #  Funkcja rozpoczęcia sesji gry  #
 # =============================== #
 def start_game(game_info):
-    system_log("GAME", f"Starting GAME (id: {game_info['time_queued']})")
+    system_log("GAME", f"Starting GAME (id: {game_info.gid})")
     t_game = GameHandler(f_game, game_info)
     t_game.start()
 
@@ -1011,14 +999,6 @@ while True:
             user = clients[notified_socket]
 
             print(f'Received message from {user["uid"]}: {repr(msg)}')
-
-            if msg.rstrip() in WORD_SET:
-                print(f"{msg.rstrip()} in wordset")
-
-            else:
-                print(f"{msg.rstrip()} not in wordset")
-
-            print(repr(let_to_num(msg.rstrip())))
 
     for notified_socket in exception_sockets:
         sockets_list.remove(notified_socket)
