@@ -87,7 +87,10 @@ def games():
         new_dict = {}
         new_dict["gid"] = entry[0]
         new_dict["pidcount"] = entry[1]
-        new_dict["word"] = data1[index][1].split(":")[1].rsplit()[0]
+        try:
+            new_dict["word"] = data1[index][1].split(":")[1].rsplit()[0]
+        except:
+            new_dict["word"] = "-- no word chosen --"
         games.append(new_dict)
 
     return render_template("games.html", games=games)

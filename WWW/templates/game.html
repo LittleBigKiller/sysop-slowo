@@ -30,6 +30,14 @@ Game {{gid}}
             </tr>
           </thead>
           <tbody>
+            {% if players|length == 0 %}
+
+            <tr>
+              <td colspan="4" class="text-center text-muted">no players were awarded any points</td>
+            </tr>
+
+            {% else %}
+
             {% for player in players %}
             <tr>
               <th scope="row">{{loop.index}}</th>
@@ -38,6 +46,8 @@ Game {{gid}}
               <td>{{player.result}}</td>
             </tr>
             {% endfor %}
+
+            {% endif %}
           </tbody>
         </table>
       </div>
