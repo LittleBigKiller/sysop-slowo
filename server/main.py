@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import time
 import mmap
@@ -22,6 +23,7 @@ def system_log(prefix, message):
         "INIT": "\u001b[32;1m",
         "INFO": "\u001b[33;1m",
         "GAME": "\u001b[34;1m",
+        "QUEUE": "\u001b[36;1m",
         "reset": "\u001b[0m",
     }
     cprefix = f"{color_codes[prefix]}{prefix}{color_codes['reset']}"
@@ -101,6 +103,7 @@ try:
 
     IP = str(config["CONNECTION"]["IP"])
     PORT = int(config["CONNECTION"]["PORT"])
+    LOGIN_TIMEOUT = int(config["CONNECTION"]["LOGIN_TIMEOUT"])
 
     MAX_PLAYERS = int(config["GAME"]["MAX_PLAYERS"])
     MIN_PLAYERS = int(config["GAME"]["MIN_PLAYERS"])
@@ -114,7 +117,7 @@ try:
     LOGGER_THREAD_TIME = float(config["TIMING"]["LOGGER_THREAD_TIME"])
     SELECT_TIMEOUT = float(config["TIMING"]["SELECT_TIMEOUT"])
 
-    CHEATS_ENABLED = config["CHEATS"]["ENABLE"] == "True"
+    FORCE_WORD = config["CHEATS"]["FORCE_WORD"] == "True"
     FORCED_WORD_NUMBER = int(config["CHEATS"]["FORCED_WORD_NUMBER"])
 
 except KeyError:
@@ -217,6 +220,7 @@ def f_queue():
                 f"Closed connection from: {game.players[player].uid}",
             )
             player.close()
+            messages_to_log.append(QueueLog("rem", game.players[player].uid))
             sockets_to_purge.append(player)
             del game.players[player]
             del clients[player]
@@ -273,18 +277,30 @@ def f_logger():
             if message.action == "purge":
                 cur.execute("DELETE FROM queue")
                 con.commit()
+                system_log(
+                    "QUEUE",
+                    f"Purged the queue",
+                )
             elif message.action == "add":
                 cur.execute(
                     "INSERT INTO queue (gid, pid) VALUES (?, ?)",
                     (message.gid, message.pid),
                 )
                 con.commit()
+                system_log(
+                    "QUEUE",
+                    f"Added Player {message.pid} to the queue",
+                )
             elif message.action == "rem":
                 cur.execute(
                     "DELETE FROM queue WHERE pid = ?",
                     [message.pid],
                 )
                 con.commit()
+                system_log(
+                    "QUEUE",
+                    f"Removed Player {message.pid} from the queue",
+                )
             messages_to_purge.append(message)
             pass
 
@@ -305,27 +321,20 @@ def f_login(client_socket, client_address):
     )
 
     try:
-        id_num = client_socket.recv(1024)
+        login_data = rcv_login(client_socket)
 
-        if not len(id_num):
+        if not login_data:
             system_log(
                 "INFO",
-                f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: CONNECTION_INTERRUPTED\u001b[0m",
+                f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: LOGIN_ERROR\u001b[0m",
             )
+            client_socket.send("-\n".encode("utf-8"))
+            client_socket.close()
             return None
 
-        id_num = id_num.decode("utf-8").rstrip()
+        id_num = login_data[0]
 
-        passwd = client_socket.recv(1024)
-
-        if not len(passwd):
-            system_log(
-                "INFO",
-                f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: CONNECTION_INTERRUPTED\u001b[0m",
-            )
-            return None
-
-        passwd = passwd.decode("utf-8").rstrip()
+        passwd = login_data[1]
 
         if is_duped(id_num):
             system_log(
@@ -346,7 +355,8 @@ def f_login(client_socket, client_address):
             return None
 
         user = Player(id_num, client_address)
-    except:
+    except Exception as e:
+        print(e)
         system_log(
             "INFO",
             f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: UNHANDLED_EXCEPTION\u001b[0m",
@@ -355,7 +365,7 @@ def f_login(client_socket, client_address):
 
     system_log(
         "INFO",
-        f"Connection from {client_address[0]}:{client_address[1]} successful (id: {user.uid})",
+        f"Connection from {client_address[0]}:{client_address[1]} successful! Client id: {user.uid}",
     )
 
     client_socket.send("+2\n".encode("utf-8"))
@@ -485,6 +495,13 @@ def f_player(gd, sock):
                 cmd = sock.recv(1024).decode("utf-8").rstrip()
                 guess = None
 
+                if not len(cmd):
+                    system_log(
+                        "INFO",
+                        f"Connection from {gd.players[sock].address[0]}:{gd.players[sock].address[1]} failed! \u001b[31mReason: CONNECTION_INTERRUPTED\u001b[0m",
+                    )
+                    return None
+
                 if len(cmd.split("\n")) > 1:
                     if cmd.split("\n")[-1] == "":
                         rs, _, _ = select.select([sock], [], [], GUESS_KICK_TIMEOUT)
@@ -519,6 +536,13 @@ def f_player(gd, sock):
                             return None
 
                         guess = sock.recv(1024).decode("utf-8").rstrip()
+
+                        if not len(guess):
+                            system_log(
+                                "INFO",
+                                f"Connection from {gd.players[sock].address[0]}:{gd.players[sock].address[1]} failed! \u001b[31mReason: CONNECTION_INTERRUPTED\u001b[0m",
+                            )
+                            return None
 
                     else:
                         guess = cmd.split("\n")[1]
@@ -800,7 +824,7 @@ def get_random_word():
 
         rline = secrets.randbelow(lines)
 
-        if CHEATS_ENABLED:
+        if FORCE_WORD:
             rline = FORCED_WORD_NUMBER
 
         s.seek(0)
@@ -842,7 +866,7 @@ def auth_user(num, pas):
 
 
 # ======================== #
-#  Funkcja odbioru danych  #
+#  Funkcje odbioru danych  #
 # ======================== #
 def rcv_msg(client_socket):
     try:
@@ -855,6 +879,43 @@ def rcv_msg(client_socket):
 
     except:
         return False
+
+
+def rcv_login(cli_sock):
+    not_done = True
+    rcv_str = ""
+    start_time = time.time()
+
+    while not_done:
+        rs, _, _ = select.select([cli_sock], [], [], SELECT_TIMEOUT)
+
+        for sock in rs:
+            try:
+                msg = sock.recv(1024)
+
+                if not len(msg):
+                    return False
+
+                msg = msg.decode("utf-8").replace("\0", "\n")
+
+                rcv_str += msg
+
+            except:
+                return False
+
+        match = re.search(r".+\n.+\n", rcv_str)
+
+        if match != None:
+            if not rcv_str == match.group():
+                return False
+            lt = match.group().rstrip().split("\n")
+            not_done = False
+            return lt
+
+        if time.time() - start_time > LOGIN_TIMEOUT:
+            return False
+
+    return False
 
 
 # ========================== #
