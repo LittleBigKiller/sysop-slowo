@@ -355,8 +355,7 @@ def f_login(client_socket, client_address):
             return None
 
         user = Player(id_num, client_address)
-    except Exception as e:
-        print(e)
+    except Exception:
         system_log(
             "INFO",
             f"Connection from {client_address[0]}:{client_address[1]} failed! \u001b[31mReason: UNHANDLED_EXCEPTION\u001b[0m",
@@ -491,7 +490,6 @@ def f_player(gd, sock):
                 continue
 
             elif isinstance(res, list):
-                print(res)
                 cmd = res[0]
                 guess = res[1]
                 if cmd == "=":
