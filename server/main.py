@@ -5,6 +5,7 @@ import mmap
 import socket
 import select
 import sqlite3
+import secrets
 import hashlib
 import threading
 import configparser
@@ -112,6 +113,10 @@ try:
     QUEUE_THREAD_TIME = float(config["TIMING"]["QUEUE_THREAD_TIME"])
     LOGGER_THREAD_TIME = float(config["TIMING"]["LOGGER_THREAD_TIME"])
     SELECT_TIMEOUT = float(config["TIMING"]["SELECT_TIMEOUT"])
+
+    CHEATS_ENABLED = config["CHEATS"]["ENABLE"] == "True"
+    FORCED_WORD_NUMBER = int(config["CHEATS"]["FORCED_WORD_NUMBER"])
+
 except KeyError:
     system_log("ERR", "Failed to load values from configuration file, check integrity")
     sys.exit(3)
@@ -136,13 +141,6 @@ system_log("INIT", f"Using WORD_SET from file '{DICT_FILE}'")
 system_log("INIT", "Starting database connection...")
 DB_CON = sqlite3.connect(os.path.join(ROOT_DIR, DB_FILE))
 DB_CUR = DB_CON.cursor()
-# DB_CUR.execute("insert into users values (?, ?)", ('test00', hashlib.sha1("qq".encode("utf-8")).hexdigest()))
-# DB_CON.commit()
-
-# DB_CUR.execute("SELECT * FROM users")
-# print(DB_CUR.fetchall())
-
-# DB_CON.close()
 system_log("INIT", f"Connected to database file '{DB_FILE}'")
 
 
@@ -238,9 +236,6 @@ def f_logger():
     con = sqlite3.connect(os.path.join(ROOT_DIR, DB_FILE))
     cur = con.cursor()
 
-    # if len(messages_to_log) > 0:
-    #     print("MESSAGES TO LOG:")
-
     messages_to_purge = []
 
     for message in messages_to_log:
@@ -300,9 +295,6 @@ def f_logger():
     for message in messages_to_purge:
         messages_to_log.remove(message)
 
-    # if len(messages_to_log) > 0:
-    #     print("================")
-
     con.close()
 
 
@@ -354,14 +346,6 @@ def f_login(client_socket, client_address):
             return None
 
         user = Player(id_num, client_address)
-        # {
-        #     "uid": id_num,
-        #     "address": client_address,
-        #     "queued": False,
-        #     "ingame": False,
-        #     "points": 0,
-        #     "guesses": [],
-        # }
     except:
         system_log(
             "INFO",
@@ -393,85 +377,17 @@ def f_game(gd):
         )
     )
 
-    while gd.word == None:
-        if not len(gd.players.values()):
-            break
-
-        wordsmith = list(gd.players.keys())[0]
-        system_log("GAME", f"Selecting {gd.players[wordsmith].uid} as wordsmith")
-        messages_to_log.append(
-            GameLog(
-                time.time(),
-                gd.gid,
-                f"Player {gd.players[wordsmith].uid} chosen as wordsmith",
-                gd.players[wordsmith].uid,
-            )
-        )
-
-        wordsmith.send("@\n".encode("utf-8"))
-        rs, _, _ = select.select([wordsmith], [], [], WORD_TIMEOUT)
-
-        if not rs:
-            system_log(
-                "GAME", f"No reply from wordsmith in allotted time... Kicking..."
-            )
-            messages_to_log.append(
-                GameLog(
-                    time.time(),
-                    gd.gid,
-                    f"Wordsmith (player: {gd.players[wordsmith].uid}) timed out",
-                    gd.players[wordsmith].uid,
-                )
-            )
-            wordsmith.close()
-            sockets_to_purge.append(wordsmith)
-            del gd.players[wordsmith]
-            del clients[wordsmith]
-        else:
-            word = wordsmith.recv(1024).decode("utf-8").rstrip()
-            if not check_in_wordset(word):
-                system_log(
-                    "GAME", f"Reply from wordsmith is not a valid word... Kicking..."
-                )
-                messages_to_log.append(
-                    GameLog(
-                        time.time(),
-                        gd.gid,
-                        f"Wordsmith (player: {gd.players[wordsmith].uid}) sent an invalid word: {repr(word)}",
-                        gd.players[wordsmith].uid,
-                    )
-                )
-                wordsmith.close()
-                sockets_to_purge.append(wordsmith)
-                del gd.players[wordsmith]
-                del clients[wordsmith]
-            else:
-                system_log("GAME", f"Word successfully chosen as {word}")
-                messages_to_log.append(
-                    GameLog(time.time(), gd.gid, f"Word chosen as: {word}")
-                )
-                gd.word = word
-                num_str = let_to_num(word).rstrip()
-                system_log("GAME", f"Broadcasting number-string {num_str} to players")
-                messages_to_log.append(
-                    GameLog(time.time(), gd.gid, f"Numerical Hint is: {num_str}")
-                )
-                for socket in gd.players.keys():
-                    if not socket == wordsmith:
-                        socket.send(let_to_num(word).encode("utf-8"))
-                system_log("GAME", f"Kicking the wordsmith because... Kicking...")
-                messages_to_log.append(
-                    GameLog(
-                        time.time(),
-                        gd.gid,
-                        f"Kicking wordsmith (player: {gd.players[wordsmith].uid})",
-                        gd.players[wordsmith].uid,
-                    )
-                )
-                wordsmith.close()
-                sockets_to_purge.append(wordsmith)
-                del gd.players[wordsmith]
-                del clients[wordsmith]
+    word = get_random_word()
+    system_log("GAME", f"Word chosen as {word}")
+    messages_to_log.append(GameLog(time.time(), gd.gid, f"Word chosen as: {word}"))
+    gd.word = word
+    num_str = let_to_num(word).rstrip()
+    system_log("GAME", f"Broadcasting number-string {num_str} to players")
+    messages_to_log.append(
+        GameLog(time.time(), gd.gid, f"Numerical Hint is: {num_str}")
+    )
+    for socket in gd.players.keys():
+        socket.send(let_to_num(word).encode("utf-8"))
 
     psocket = []
     for socket, player in gd.players.items():
@@ -569,10 +485,6 @@ def f_player(gd, sock):
                 cmd = sock.recv(1024).decode("utf-8").rstrip()
                 guess = None
 
-                # print("repr cmd", repr(cmd))
-                # print("split cmd", cmd.split("\n"))
-                # print("len split cmd", len(cmd.split("\n")))
-
                 if len(cmd.split("\n")) > 1:
                     if cmd.split("\n")[-1] == "":
                         rs, _, _ = select.select([sock], [], [], GUESS_KICK_TIMEOUT)
@@ -600,7 +512,6 @@ def f_player(gd, sock):
                                     "Malformed guess",
                                 )
                             )
-                            # print('malf cmd', cmd)
                             sock.close()
                             sockets_to_purge.append(sock)
                             del gd.players[sock]
@@ -608,7 +519,6 @@ def f_player(gd, sock):
                             return None
 
                         guess = sock.recv(1024).decode("utf-8").rstrip()
-                        # print('guess', guess)
 
                     else:
                         guess = cmd.split("\n")[1]
@@ -639,7 +549,6 @@ def f_player(gd, sock):
                                 "Malformed guess",
                             )
                         )
-                        # print('malf cmd', cmd)
                         sock.close()
                         sockets_to_purge.append(sock)
                         del gd.players[sock]
@@ -647,9 +556,6 @@ def f_player(gd, sock):
                         return None
 
                     guess = sock.recv(1024).decode("utf-8").rstrip()
-
-                # print("repr cmd1", repr(cmd))
-                # print("repr guess1", repr(guess))
 
                 if cmd == "=":
                     if guess == gd.word:
@@ -735,7 +641,6 @@ def f_player(gd, sock):
                                 "GAME",
                                 f"Player {gd.players[sock].uid} guessed the same letter ({guess}) again! Nope, won't work!",
                             )
-                            # print('same repr guess', repr(guess))
                             sock.send("!\n".encode("utf-8"))
                             continue
 
@@ -762,8 +667,6 @@ def f_player(gd, sock):
                                 "Malformed guess",
                             )
                         )
-                        # print('malf0 repr cmd', repr(cmd))
-                        # print('malf0 repr guess', repr(guess))
                         sock.close()
                         sockets_to_purge.append(sock)
                         del gd.players[sock]
@@ -793,8 +696,6 @@ def f_player(gd, sock):
                             "Malformed guess",
                         )
                     )
-                    # print('malf1 repr cmd', repr(cmd))
-                    # print('malf1 repr guess', repr(guess))
                     sock.close()
                     sockets_to_purge.append(sock)
                     del gd.players[sock]
@@ -856,9 +757,9 @@ def start_game(game_info):
     game_queue.remove(game_info)
 
 
-# ============================= #
-#  Funkcje pomocnicze do liter  #
-# ============================= #
+# ==================================== #
+#  Funkcje pomocnicze do liter i słów  #
+# ==================================== #
 def let_to_num(word):
     letter_string = ""
     for letter in word.rstrip():
@@ -887,6 +788,28 @@ def check_in_wordset(word):
         wfile.fileno(), 0, access=mmap.ACCESS_READ
     ) as s:
         return s.find(word.encode("utf-8")) != -1
+
+
+def get_random_word():
+    with open(os.path.join(ROOT_DIR, DICT_FILE)) as wfile, mmap.mmap(
+        wfile.fileno(), 0, access=mmap.ACCESS_READ
+    ) as s:
+        lines = 0
+        while s.readline():
+            lines += 1
+
+        rline = secrets.randbelow(lines)
+
+        if CHEATS_ENABLED:
+            rline = FORCED_WORD_NUMBER
+
+        s.seek(0)
+        lines = 0
+        while lines < rline:
+            s.readline()
+            lines += 1
+
+        return s.readline().decode().rstrip()
 
 
 # ==================== #
