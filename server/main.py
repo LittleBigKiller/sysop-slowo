@@ -562,11 +562,8 @@ def f_player(gd, sock):
                                         gd.players[sock].uid,
                                     )
                                 )
-                                sock.send("=\n".encode("utf-8"))
-                                time.sleep(0.05)
-                                sock.send(
-                                    f"{pos_in_word(gd.word, guess)}\n".encode("utf-8")
-                                )
+                                reply_string = f"=\n{pos_in_word(gd.word, guess)}\n"
+                                sock.send(reply_string.encode("utf-8"))
                                 continue
                         else:
                             system_log(
@@ -673,12 +670,8 @@ def f_player(gd, sock):
                 "Someone else guessed",
             )
         )
-        sock.send("=\n".encode("utf-8"))
-        time.sleep(0.05)
-        sock.send(f"{gd.players[sock].points}\n".encode("utf-8"))
-        time.sleep(0.05)
-        sock.send("?\n".encode("utf-8"))
-        time.sleep(0.05)
+        reply_string = f"=\n{gd.players[sock].points}\n?\n"
+        sock.send(reply_string.encode("utf-8"))
 
     sock.close()
     sockets_to_purge.append(sock)
