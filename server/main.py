@@ -466,7 +466,7 @@ def f_player(gd, sock):
                         "Timed out",
                     )
                 )
-
+                sock.send("?\n".encode("utf-8"))
                 sock.close()
                 sockets_to_purge.append(sock)
                 del gd.players[sock]
