@@ -390,13 +390,13 @@ def f_game(gd):
     system_log("GAME", f"Word chosen as {word}")
     messages_to_log.append(GameLog(time.time(), gd.gid, f"Word chosen as: {word}"))
     gd.word = word
-    num_str = let_to_num(word).rstrip()
+    num_str = let_to_num(word)
     system_log("GAME", f"Broadcasting number-string {num_str} to players")
     messages_to_log.append(
         GameLog(time.time(), gd.gid, f"Numerical Hint is: {num_str}")
     )
     for socket in gd.players.keys():
-        socket.send(let_to_num(word).encode("utf-8"))
+        socket.send((let_to_num(word) + '\n').encode("utf-8"))
 
     psocket = []
     for socket, player in gd.players.items():
@@ -699,8 +699,6 @@ def let_to_num(word):
     for letter in word.rstrip():
         letter_string += LETTER_DICT[letter]
 
-    letter_string += "\n"
-
     return letter_string
 
 
@@ -711,8 +709,6 @@ def pos_in_word(word, letter):
             pos_string += "1"
         else:
             pos_string += "0"
-
-    pos_string += "\n"
 
     return pos_string
 
