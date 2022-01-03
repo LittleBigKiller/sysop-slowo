@@ -211,7 +211,10 @@ def f_queue():
         for player in game.players.keys():
             rs, _, _ = select.select([player], [], [], 0.01)
 
-            if rs and not len(player.recv(1024)):
+            try:
+                if rs and not len(player.recv(1024)):
+                    to_purge.append(player)
+            except:
                 to_purge.append(player)
 
         for player in to_purge:
@@ -396,7 +399,7 @@ def f_game(gd):
         GameLog(time.time(), gd.gid, f"Numerical Hint is: {num_str}")
     )
     for socket in gd.players.keys():
-        socket.send((let_to_num(word) + '\n').encode("utf-8"))
+        socket.send((let_to_num(word) + "\n").encode("utf-8"))
 
     psocket = []
     for socket, player in gd.players.items():
@@ -455,6 +458,10 @@ def f_player(gd, sock):
                         f"Player {gd.players[sock].uid} timed out - kicked",
                         gd.players[sock].uid,
                     )
+                )
+                system_log(
+                    "GAME",
+                    f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
                 )
                 messages_to_log.append(
                     PlayerLog(
@@ -593,6 +600,10 @@ def f_player(gd, sock):
                     gd.players[sock].uid,
                 )
             )
+            system_log(
+                "GAME",
+                f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
+            )
             messages_to_log.append(
                 PlayerLog(
                     time.time(),
@@ -622,6 +633,10 @@ def f_player(gd, sock):
                     f"Player {gd.players[sock].uid} caused a connection exception - kicked",
                     gd.players[sock].uid,
                 )
+            )
+            system_log(
+                "GAME",
+                f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
             )
             messages_to_log.append(
                 PlayerLog(
@@ -674,6 +689,10 @@ def f_player(gd, sock):
         reply_string = f"=\n{gd.players[sock].points}\n?\n"
         sock.send(reply_string.encode("utf-8"))
 
+    system_log(
+        "GAME",
+        f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
+    )
     sock.close()
     sockets_to_purge.append(sock)
     del gd.players[sock]
