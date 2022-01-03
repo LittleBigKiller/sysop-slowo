@@ -654,6 +654,7 @@ def f_player(gd, sock):
                 "Ran out of guesses",
             )
         )
+        sock.send("?\n".encode("utf-8"))
 
     else:
         system_log(
