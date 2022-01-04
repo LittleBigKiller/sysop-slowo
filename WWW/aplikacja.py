@@ -73,7 +73,7 @@ def index():
 @app.route("/games")
 def games():
     DB_CUR.execute(
-        "SELECT gid,count(DISTINCT pid) AS count FROM games GROUP BY gid ORDER BY gid"
+        "SELECT gid,count(DISTINCT pid) AS count FROM games GROUP BY gid ORDER BY gid DESC"
     )
     data0 = DB_CUR.fetchall()
 
@@ -81,18 +81,33 @@ def games():
     for index, entry in enumerate(data0):
         new_dict = {}
         new_dict["gid"] = entry[0]
+        new_dict["timestamp"] = datetime.fromtimestamp(int(entry[0])).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         new_dict["pidcount"] = entry[1]
 
         DB_CUR.execute(
-            "SELECT gid,message FROM games WHERE message LIKE 'Word chosen as%' AND gid = ?",
+            "SELECT message FROM games WHERE message LIKE 'Word chosen as%' AND gid = ?",
             [new_dict["gid"]],
         )
         data1 = DB_CUR.fetchone()
 
         try:
-            new_dict["word"] = data1[1].split(":")[1].rsplit()[0]
+            new_dict["word"] = data1[0].split(":")[1].rsplit()[0]
         except:
             new_dict["word"] = "-- no word chosen --"
+
+        DB_CUR.execute(
+            "SELECT message FROM games WHERE message LIKE 'Game ended with%' AND gid = ?",
+            [new_dict["gid"]],
+        )
+        data2 = DB_CUR.fetchone()
+
+        try:
+            new_dict["result"] = data2[0]
+        except:
+            new_dict["result"] = "Game ended prematurely"
+
         games.append(new_dict)
 
     return render_template("games.html", games=games)

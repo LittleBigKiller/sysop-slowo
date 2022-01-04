@@ -10,9 +10,11 @@ Games
   <thead>
     <tr>
       <th scope="col">#</th>
+      <th scope="col">Timestamp</th>
       <th scope="col">Game ID</th>
       <th scope="col">Player Count</th>
       <th scope="col">Word</th>
+      <th scope="col">Result</th>
     </tr>
   </thead>
   <tbody>
@@ -27,9 +29,11 @@ Games
     {% for game in games %}
     <tr>
       <th scope="row">{{loop.index}}</th>
+      <td>{{game.timestamp}}</td>
       <td><a href="{{ url_for('game', gameid=game.gid) }}">{{game.gid}}</a></td>
       <td>{{game.pidcount}}</td>
       <td>{{game.word}}</td>
+      <td>{{game.result}}</td>
     </tr>
     {% endfor %}
 
