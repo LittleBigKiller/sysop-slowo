@@ -26,8 +26,11 @@ def system_log(prefix, message):
         "QUEUE": "\u001b[36;1m",
         "reset": "\u001b[0m",
     }
+    timestamp = (
+        f"{datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S.%f')}"
+    )
     cprefix = f"{color_codes[prefix]}{prefix}{color_codes['reset']}"
-    print(f"[{cprefix}] {message}")
+    print(f"[{timestamp}][{cprefix}] {message}")
 
 
 # ======================== #
@@ -944,14 +947,12 @@ while True:
                     "INFO",
                     f"Closed connection from: {clients[notified_socket].uid}",
                 )
+                notified_socket.close()
                 sockets_to_purge.append(notified_socket)
                 sockets_list.remove(notified_socket)
                 del clients[notified_socket]
-                continue
 
-            user = clients[notified_socket]
-
-            print(f"Received message from {user.uid}: {repr(msg)}")
+            continue
 
     for notified_socket in exception_sockets:
         sockets_list.remove(notified_socket)
