@@ -473,12 +473,14 @@ def f_player(gd, sock):
                         "Timed out",
                     )
                 )
-                sock.send("?\n".encode("utf-8"))
-                sock.close()
-                sockets_to_purge.append(sock)
-                del gd.players[sock]
-                del clients[sock]
-                return None
+                try:
+                    sock.send("?\n".encode("utf-8"))
+                finally:
+                    sock.close()
+                    sockets_to_purge.append(sock)
+                    del gd.players[sock]
+                    del clients[sock]
+                    return None
 
             elif res == "miss":
                 system_log(
@@ -493,8 +495,10 @@ def f_player(gd, sock):
                         gd.players[sock].uid,
                     )
                 )
-                sock.send("#\n".encode("utf-8"))
-                continue
+                try:
+                    sock.send("#\n".encode("utf-8"))
+                finally:
+                    continue
 
             elif isinstance(res, list):
                 cmd = res[0]
@@ -515,8 +519,6 @@ def f_player(gd, sock):
                                 gd.players[sock].uid,
                             )
                         )
-                        reply_string = f"=\n{gd.players[sock].points}\n?\n"
-                        sock.send(reply_string.encode("utf-8"))
                         system_log(
                             "GAME",
                             f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
@@ -531,11 +533,15 @@ def f_player(gd, sock):
                                 "Guessed the word",
                             )
                         )
-                        sock.close()
-                        sockets_to_purge.append(sock)
-                        del gd.players[sock]
-                        del clients[sock]
-                        return None
+                        try:
+                            reply_string = f"=\n{gd.players[sock].points}\n?\n"
+                            sock.send(reply_string.encode("utf-8"))
+                        finally:
+                            sock.close()
+                            sockets_to_purge.append(sock)
+                            del gd.players[sock]
+                            del clients[sock]
+                            return None
 
                     else:
                         sock.send("!\n".encode("utf-8"))
@@ -552,8 +558,10 @@ def f_player(gd, sock):
                                     "GAME",
                                     f"Player {gd.players[sock].uid} did not guess a letter ({guess})!",
                                 )
-                                sock.send("!\n".encode("utf-8"))
-                                continue
+                                try:
+                                    sock.send("!\n".encode("utf-8"))
+                                finally:
+                                    continue
 
                             else:
                                 gd.players[sock].points += hit_count
@@ -569,9 +577,11 @@ def f_player(gd, sock):
                                         gd.players[sock].uid,
                                     )
                                 )
-                                reply_string = f"=\n{pos_in_word(gd.word, guess)}\n"
-                                sock.send(reply_string.encode("utf-8"))
-                                continue
+                                try:
+                                    reply_string = f"=\n{pos_in_word(gd.word, guess)}\n"
+                                    sock.send(reply_string.encode("utf-8"))
+                                finally:
+                                    continue
                         else:
                             system_log(
                                 "GAME",
@@ -585,8 +595,10 @@ def f_player(gd, sock):
                                     gd.players[sock].uid,
                                 )
                             )
-                            sock.send("!\n".encode("utf-8"))
-                            continue
+                            try:
+                                sock.send("!\n".encode("utf-8"))
+                            finally:
+                                continue
 
             system_log(
                 "GAME",
@@ -614,12 +626,14 @@ def f_player(gd, sock):
                     "Malformed guess",
                 )
             )
-            sock.send("?\n".encode("utf-8"))
-            sock.close()
-            sockets_to_purge.append(sock)
-            del gd.players[sock]
-            del clients[sock]
-            return None
+            try:
+                sock.send("?\n".encode("utf-8"))
+            finally:
+                sock.close()
+                sockets_to_purge.append(sock)
+                del gd.players[sock]
+                del clients[sock]
+                return None
 
         except:
             system_log(
@@ -648,11 +662,14 @@ def f_player(gd, sock):
                     "Connection Exception",
                 )
             )
-            sock.close()
-            sockets_to_purge.append(sock)
-            del gd.players[sock]
-            del clients[sock]
-            return None
+            try:
+                sock.send("?\n".encode("utf-8"))
+            finally:
+                sock.close()
+                sockets_to_purge.append(sock)
+                del gd.players[sock]
+                del clients[sock]
+                return None
 
     if try_ctr == MAX_GUESS_COUNT:
         system_log(
@@ -669,7 +686,10 @@ def f_player(gd, sock):
                 "Ran out of guesses",
             )
         )
-        sock.send("?\n".encode("utf-8"))
+        try:
+            sock.send("?\n".encode("utf-8"))
+        except:
+            pass
 
     else:
         system_log(
@@ -686,8 +706,11 @@ def f_player(gd, sock):
                 "Someone else guessed",
             )
         )
-        reply_string = f"=\n{gd.players[sock].points}\n?\n"
-        sock.send(reply_string.encode("utf-8"))
+        try:
+            reply_string = f"=\n{gd.players[sock].points}\n?\n"
+            sock.send(reply_string.encode("utf-8"))
+        except:
+            pass
 
     system_log(
         "GAME",
