@@ -3,6 +3,7 @@ import re
 import sys
 import time
 import mmap
+import pytz
 import socket
 import select
 import sqlite3
@@ -10,9 +11,13 @@ import secrets
 import hashlib
 import threading
 import configparser
+from datetime import datetime, timedelta
 
 from handlers import *
 from data_classes import *
+
+START_TIME = time.time()
+timezone = pytz.timezone("UTC")
 
 # ========================= #
 #  Funkcja tworzenia logów  #
@@ -26,11 +31,11 @@ def system_log(prefix, message):
         "QUEUE": "\u001b[36;1m",
         "reset": "\u001b[0m",
     }
-    timestamp = (
-        f"{datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S.%f')}"
-    )
+    timestamp = time.time() - START_TIME
+    m, s = divmod(timestamp, 60)
+    h, m = divmod(m, 60)
     cprefix = f"{color_codes[prefix]}{prefix}{color_codes['reset']}"
-    print(f"[{timestamp}][{cprefix}] {message}")
+    print(f"[{h:.0f}:{m:02.0f}:{s:02.4f}][{cprefix}] {message}")
 
 
 # ======================== #
