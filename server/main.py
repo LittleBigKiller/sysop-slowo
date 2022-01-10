@@ -463,7 +463,6 @@ def f_player(gd, sock):
         try:
             res = rcv_guess(sock)
         except:
-            print("recv")
             return dsc_conn_exc(gd, sock, try_ctr)
 
         if res == "kick":
@@ -485,7 +484,6 @@ def f_player(gd, sock):
             try:
                 sock.send("#\n".encode("utf-8"))
             except:
-                print("#")
                 return dsc_conn_exc(gd, sock, try_ctr)
 
         elif isinstance(res, list):
@@ -499,7 +497,6 @@ def f_player(gd, sock):
                     try:
                         sock.send("!\n".encode("utf-8"))
                     except:
-                        print("bad word")
                         return dsc_conn_exc(gd, sock, try_ctr)
 
             elif cmd == "+":
@@ -516,7 +513,6 @@ def f_player(gd, sock):
                             try:
                                 sock.send("!\n".encode("utf-8"))
                             except:
-                                print("bad letter")
                                 return dsc_conn_exc(gd, sock, try_ctr)
 
                         else:
@@ -537,7 +533,6 @@ def f_player(gd, sock):
                                 reply_string = f"=\n{pos_in_word(gd.word, guess)}\n"
                                 sock.send(reply_string.encode("utf-8"))
                             except:
-                                print("good letter")
                                 return dsc_conn_exc(gd, sock, try_ctr)
                     else:
                         system_log(
@@ -555,11 +550,9 @@ def f_player(gd, sock):
                         try:
                             sock.send("!\n".encode("utf-8"))
                         except:
-                            print("same letter")
                             return dsc_conn_exc(gd, sock, try_ctr)
 
         else:
-            print("malformed")
             return dsc_malformed(gd, sock, try_ctr)
 
     if try_ctr == MAX_GUESS_COUNT:
