@@ -417,9 +417,13 @@ def f_game(gd):
 
     while not gd.ended:
         just_end = True
+        lock_game = False
         for socket in psocket:
+            if gd.players[socket].waitforme:
+                lock_game = True
             if socket.fileno() != -1:
                 just_end = False
+        gd.lock = lock_game
 
         if just_end:
             break
@@ -446,6 +450,10 @@ def f_player(gd, sock):
     try_ctr = 0
 
     while try_ctr < MAX_GUESS_COUNT:
+        while gd.lock:
+            time.sleep(0.1)
+            continue            
+
         if gd.ended:
             break
 
@@ -678,6 +686,9 @@ def f_player(gd, sock):
                 del gd.players[sock]
                 del clients[sock]
                 return None
+
+        finally:
+            gd.players[sock].waitforme = False
 
     if try_ctr == MAX_GUESS_COUNT:
         system_log(
