@@ -428,7 +428,10 @@ def f_game(gd):
         for socket in psocket:
             if socket.fileno() != -1:
                 just_end = False
-                tries.append(gd.players[socket].try_ctr)
+                try:
+                    tries.append(gd.players[socket].try_ctr)
+                except:
+                    break
             else:
                 continue
 
