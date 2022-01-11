@@ -12,6 +12,8 @@ class Player:
         self.address = address
         self.queued = False
         self.ingame = False
+        self.waitforothers = False
+        self.try_ctr = 0
         self.points = 0
         self.guesses = []
 

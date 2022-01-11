@@ -29,6 +29,7 @@ def system_log(prefix, message):
         "INFO": "\u001b[33;1m",
         "GAME": "\u001b[34;1m",
         "QUEUE": "\u001b[36;1m",
+        "THLCK": "\u001b[35m",
         "reset": "\u001b[0m",
     }
     timestamp = time.time() - START_TIME
@@ -124,6 +125,8 @@ try:
     QUEUE_THREAD_TIME = float(config["TIMING"]["QUEUE_THREAD_TIME"])
     LOGGER_THREAD_TIME = float(config["TIMING"]["LOGGER_THREAD_TIME"])
     SELECT_TIMEOUT = float(config["TIMING"]["SELECT_TIMEOUT"])
+    PLAYER_LOCK_INTERVAL = float(config["TIMING"]["PLAYER_LOCK_INTERVAL"])
+    LOCK_CHECKER_DELAY = float(config["TIMING"]["LOCK_CHECKER_DELAY"])
 
     FORCE_WORD = config["CHEATS"]["FORCE_WORD"] == "True"
     FORCED_WORD_NUMBER = int(config["CHEATS"]["FORCED_WORD_NUMBER"])
@@ -415,14 +418,48 @@ def f_game(gd):
         psocket.append(socket)
         t_player.start()
 
+    time.sleep(LOCK_CHECKER_DELAY)
+
     while not gd.ended:
         just_end = True
+
+        minimum = 0
+        tries = []
         for socket in psocket:
             if socket.fileno() != -1:
                 just_end = False
+                try:
+                    tries.append(gd.players[socket].try_ctr)
+                except:
+                    break
+            else:
+                continue
 
         if just_end:
             break
+
+        minimum = min(tries)
+        for socket in psocket:
+            if socket.fileno() == -1:
+                break
+
+            try:
+                if gd.players[socket].try_ctr > minimum:
+                    try:
+                        gd.players[socket].waitforothers = True
+                    except:
+                        pass
+            except:
+                break
+
+            try:
+                if gd.players[socket].try_ctr == minimum:
+                    try:
+                        gd.players[socket].waitforothers = False
+                    except:
+                        pass
+            except:
+                break
 
     if gd.ended:
         system_log(
@@ -443,243 +480,125 @@ def f_game(gd):
 
 
 def f_player(gd, sock):
-    try_ctr = 0
-
-    while try_ctr < MAX_GUESS_COUNT:
+    while gd.players[sock].try_ctr < MAX_GUESS_COUNT:
         if gd.ended:
             break
 
-        try_ctr += 1
+        gd.players[sock].try_ctr += 1
+
+        while gd.players[sock].waitforothers:
+            if gd.ended:
+                break
+            time.sleep(PLAYER_LOCK_INTERVAL)
 
         try:
             res = rcv_guess(sock)
+        except:
+            return dsc_conn_exc(gd, sock)
 
-            if res == "kick":
-                system_log(
-                    "GAME",
-                    f"No reply from {gd.players[sock].uid} in allotted time... Kicking...",
-                )
-                messages_to_log.append(
-                    GameLog(
-                        time.time(),
-                        gd.gid,
-                        f"Player {gd.players[sock].uid} timed out - kicked",
-                        gd.players[sock].uid,
-                    )
-                )
-                system_log(
-                    "GAME",
-                    f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
-                )
-                messages_to_log.append(
-                    PlayerLog(
-                        time.time(),
-                        gd.gid,
-                        gd.players[sock].uid,
-                        gd.players[sock].points,
-                        try_ctr,
-                        "Timed out",
-                    )
-                )
-                try:
-                    sock.send("?\n".encode("utf-8"))
-                finally:
-                    sock.close()
-                    sockets_to_purge.append(sock)
-                    del gd.players[sock]
-                    del clients[sock]
-                    return None
+        if res == "kick":
+            return dsc_timeout(gd, sock)
 
-            elif res == "miss":
-                system_log(
-                    "GAME",
-                    f"Reply from {gd.players[sock].uid} took too long... Ignoring...",
+        elif res == "miss":
+            system_log(
+                "GAME",
+                f"Player {gd.players[sock].uid} guessed too late - ignored",
+            )
+            messages_to_log.append(
+                GameLog(
+                    time.time(),
+                    gd.gid,
+                    f"Player {gd.players[sock].uid} guessed too late - ignored",
+                    gd.players[sock].uid,
                 )
-                messages_to_log.append(
-                    GameLog(
-                        time.time(),
-                        gd.gid,
-                        f"Player {gd.players[sock].uid} guessed too late - ignored",
-                        gd.players[sock].uid,
-                    )
-                )
-                try:
-                    sock.send("#\n".encode("utf-8"))
-                finally:
-                    continue
+            )
+            try:
+                sock.send("#\n".encode("utf-8"))
+            except:
+                return dsc_conn_exc(gd, sock)
 
-            elif isinstance(res, list):
-                cmd = res[0]
-                guess = res[1]
-                if cmd == "=":
-                    if guess == gd.word:
-                        gd.ended = True
-                        gd.players[sock].points += 5
-                        system_log(
-                            "GAME",
-                            f"Player {gd.players[sock].uid} guessed the word ({guess})!",
-                        )
-                        messages_to_log.append(
-                            GameLog(
-                                time.time(),
-                                gd.gid,
-                                f"Player {gd.players[sock].uid} guessed the word ({guess}) [+5 points]",
-                                gd.players[sock].uid,
-                            )
-                        )
-                        system_log(
-                            "GAME",
-                            f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
-                        )
-                        messages_to_log.append(
-                            PlayerLog(
-                                time.time(),
-                                gd.gid,
-                                gd.players[sock].uid,
-                                gd.players[sock].points,
-                                try_ctr,
-                                "Guessed the word",
-                            )
-                        )
-                        try:
-                            reply_string = f"=\n{gd.players[sock].points}\n?\n"
-                            sock.send(reply_string.encode("utf-8"))
-                        finally:
-                            sock.close()
-                            sockets_to_purge.append(sock)
-                            del gd.players[sock]
-                            del clients[sock]
-                            return None
+        elif isinstance(res, list):
+            cmd = res[0]
+            guess = res[1]
+            if cmd == "=":
+                if guess == gd.word:
+                    return dsc_guessed(gd, sock, guess)
 
-                    else:
+                else:
+                    try:
                         sock.send("!\n".encode("utf-8"))
-                        continue
+                    except:
+                        return dsc_conn_exc(gd, sock)
 
-                elif cmd == "+":
-                    if len(guess) == 1:
-                        if not guess in gd.players[sock].guesses:
-                            hit_count = gd.word.count(guess)
-                            gd.players[sock].guesses.append(guess)
+            elif cmd == "+":
+                if len(guess) == 1:
+                    if not guess in gd.players[sock].guesses:
+                        hit_count = gd.word.count(guess)
+                        gd.players[sock].guesses.append(guess)
 
-                            if hit_count == 0:
-                                system_log(
-                                    "GAME",
-                                    f"Player {gd.players[sock].uid} did not guess a letter ({guess})!",
-                                )
-                                try:
-                                    sock.send("!\n".encode("utf-8"))
-                                finally:
-                                    continue
-
-                            else:
-                                gd.players[sock].points += hit_count
-                                system_log(
-                                    "GAME",
-                                    f"Player {gd.players[sock].uid} guessed a letter ({guess})!",
-                                )
-                                messages_to_log.append(
-                                    GameLog(
-                                        time.time(),
-                                        gd.gid,
-                                        f"Player {gd.players[sock].uid} guessed a letter ({guess}) [+{hit_count} points]",
-                                        gd.players[sock].uid,
-                                    )
-                                )
-                                try:
-                                    reply_string = f"=\n{pos_in_word(gd.word, guess)}\n"
-                                    sock.send(reply_string.encode("utf-8"))
-                                finally:
-                                    continue
-                        else:
+                        if hit_count == 0:
                             system_log(
                                 "GAME",
-                                f"Player {gd.players[sock].uid} guessed the same letter ({guess}) again! Nope, won't work!",
+                                f"Player {gd.players[sock].uid} did not guess a letter ({guess})!",
                             )
                             messages_to_log.append(
                                 GameLog(
                                     time.time(),
                                     gd.gid,
-                                    f"Player {gd.players[sock].uid} guessed the same letter ({guess}) again! Nope, won't work!",
+                                    f"Player {gd.players[sock].uid} did not guess a letter ({guess})!",
                                     gd.players[sock].uid,
                                 )
                             )
                             try:
                                 sock.send("!\n".encode("utf-8"))
-                            finally:
-                                continue
+                            except:
+                                return dsc_conn_exc(gd, sock)
 
-            system_log(
-                "GAME",
-                f"Player {gd.players[sock].uid} submitted a malformed guess! Kicking...",
-            )
-            messages_to_log.append(
-                GameLog(
-                    time.time(),
-                    gd.gid,
-                    f"Player {gd.players[sock].uid} submitted a malformed guess - kicked",
-                    gd.players[sock].uid,
-                )
-            )
-            system_log(
-                "GAME",
-                f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
-            )
-            messages_to_log.append(
-                PlayerLog(
-                    time.time(),
-                    gd.gid,
-                    gd.players[sock].uid,
-                    gd.players[sock].points,
-                    try_ctr,
-                    "Malformed guess",
-                )
-            )
-            try:
-                sock.send("?\n".encode("utf-8"))
-            finally:
-                sock.close()
-                sockets_to_purge.append(sock)
-                del gd.players[sock]
-                del clients[sock]
-                return None
+                        else:
+                            gd.players[sock].points += hit_count
+                            system_log(
+                                "GAME",
+                                f"Player {gd.players[sock].uid} guessed a letter ({guess})!",
+                            )
+                            messages_to_log.append(
+                                GameLog(
+                                    time.time(),
+                                    gd.gid,
+                                    f"Player {gd.players[sock].uid} guessed a letter ({guess}) [+{hit_count} points]",
+                                    gd.players[sock].uid,
+                                )
+                            )
+                            try:
+                                reply_string = f"=\n{pos_in_word(gd.word, guess)}\n"
+                                sock.send(reply_string.encode("utf-8"))
+                            except:
+                                return dsc_conn_exc(gd, sock)
+                    else:
+                        system_log(
+                            "GAME",
+                            f"Player {gd.players[sock].uid} guessed the same letter ({guess}) again! Nope, won't work!",
+                        )
+                        messages_to_log.append(
+                            GameLog(
+                                time.time(),
+                                gd.gid,
+                                f"Player {gd.players[sock].uid} guessed the same letter ({guess}) again! Nope, won't work!",
+                                gd.players[sock].uid,
+                            )
+                        )
+                        try:
+                            sock.send("!\n".encode("utf-8"))
+                        except:
+                            return dsc_conn_exc(gd, sock)
+                else:
+                    return dsc_malformed(gd, sock)
+            else:
+                return dsc_malformed(gd, sock)
 
-        except:
-            system_log(
-                "GAME",
-                f"Player {gd.players[sock].uid} caused a connection exception! Kicking...",
-            )
-            messages_to_log.append(
-                GameLog(
-                    time.time(),
-                    gd.gid,
-                    f"Player {gd.players[sock].uid} caused a connection exception - kicked",
-                    gd.players[sock].uid,
-                )
-            )
-            system_log(
-                "GAME",
-                f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
-            )
-            messages_to_log.append(
-                PlayerLog(
-                    time.time(),
-                    gd.gid,
-                    gd.players[sock].uid,
-                    gd.players[sock].points,
-                    try_ctr,
-                    "Connection Exception",
-                )
-            )
-            try:
-                sock.send("?\n".encode("utf-8"))
-            finally:
-                sock.close()
-                sockets_to_purge.append(sock)
-                del gd.players[sock]
-                del clients[sock]
-                return None
+        else:
+            return dsc_malformed(gd, sock)
 
-    if try_ctr == MAX_GUESS_COUNT:
+    if gd.players[sock].try_ctr == MAX_GUESS_COUNT:
         system_log(
             "GAME",
             f"Player {gd.players[sock].uid} ran out of guesses! Kicking...",
@@ -690,7 +609,7 @@ def f_player(gd, sock):
                 gd.gid,
                 gd.players[sock].uid,
                 gd.players[sock].points,
-                try_ctr,
+                gd.players[sock].try_ctr,
                 "Ran out of guesses",
             )
         )
@@ -710,7 +629,7 @@ def f_player(gd, sock):
                 gd.gid,
                 gd.players[sock].uid,
                 gd.players[sock].points,
-                try_ctr,
+                gd.players[sock].try_ctr,
                 "Someone else guessed",
             )
         )
@@ -724,10 +643,7 @@ def f_player(gd, sock):
         "GAME",
         f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
     )
-    sock.close()
-    sockets_to_purge.append(sock)
-    del gd.players[sock]
-    del clients[sock]
+    return drop_connection(gd, sock)
 
 
 # =============================== #
@@ -911,6 +827,152 @@ def rcv_guess(cli_sock):
             return "kick"
 
     return "malf"
+
+
+# ============================= #
+#  Funkcje rozłączania klienta  #
+# ============================= #
+def drop_connection(gd, sock):
+    sock.close()
+    sockets_to_purge.append(sock)
+    del gd.players[sock]
+    del clients[sock]
+    return None
+
+
+def dsc_conn_exc(gd, sock):
+    system_log(
+        "GAME",
+        f"Player {gd.players[sock].uid} caused a connection exception! Kicking...",
+    )
+    messages_to_log.append(
+        GameLog(
+            time.time(),
+            gd.gid,
+            f"Player {gd.players[sock].uid} caused a connection exception - kicked",
+            gd.players[sock].uid,
+        )
+    )
+    system_log(
+        "GAME",
+        f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
+    )
+    messages_to_log.append(
+        PlayerLog(
+            time.time(),
+            gd.gid,
+            gd.players[sock].uid,
+            gd.players[sock].points,
+            gd.players[sock].try_ctr,
+            "Connection Exception",
+        )
+    )
+    try:
+        sock.send("?\n".encode("utf-8"))
+    finally:
+        return drop_connection(gd, sock)
+
+
+def dsc_timeout(gd, sock):
+    system_log(
+        "GAME",
+        f"No reply from {gd.players[sock].uid} in allotted time... Kicking...",
+    )
+    messages_to_log.append(
+        GameLog(
+            time.time(),
+            gd.gid,
+            f"Player {gd.players[sock].uid} timed out - kicked",
+            gd.players[sock].uid,
+        )
+    )
+    system_log(
+        "GAME",
+        f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
+    )
+    messages_to_log.append(
+        PlayerLog(
+            time.time(),
+            gd.gid,
+            gd.players[sock].uid,
+            gd.players[sock].points,
+            gd.players[sock].try_ctr,
+            "Timed out",
+        )
+    )
+    try:
+        sock.send("?\n".encode("utf-8"))
+    finally:
+        return drop_connection(gd, sock)
+
+
+def dsc_guessed(gd, sock, guess):
+    gd.ended = True
+    gd.players[sock].points += 5
+    system_log(
+        "GAME",
+        f"Player {gd.players[sock].uid} guessed the word ({guess})!",
+    )
+    messages_to_log.append(
+        GameLog(
+            time.time(),
+            gd.gid,
+            f"Player {gd.players[sock].uid} guessed the word ({guess}) [+5 points]",
+            gd.players[sock].uid,
+        )
+    )
+    system_log(
+        "GAME",
+        f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
+    )
+    messages_to_log.append(
+        PlayerLog(
+            time.time(),
+            gd.gid,
+            gd.players[sock].uid,
+            gd.players[sock].points,
+            gd.players[sock].try_ctr,
+            "Guessed the word",
+        )
+    )
+    try:
+        reply_string = f"=\n{gd.players[sock].points}\n?\n"
+        sock.send(reply_string.encode("utf-8"))
+    finally:
+        return drop_connection(gd, sock)
+
+
+def dsc_malformed(gd, sock):
+    system_log(
+        "GAME",
+        f"Player {gd.players[sock].uid} submitted a malformed guess! Kicking...",
+    )
+    messages_to_log.append(
+        GameLog(
+            time.time(),
+            gd.gid,
+            f"Player {gd.players[sock].uid} submitted a malformed guess - kicked",
+            gd.players[sock].uid,
+        )
+    )
+    system_log(
+        "GAME",
+        f"Player {gd.players[sock].uid} achieved a total of {gd.players[sock].points} points!",
+    )
+    messages_to_log.append(
+        PlayerLog(
+            time.time(),
+            gd.gid,
+            gd.players[sock].uid,
+            gd.players[sock].points,
+            gd.players[sock].try_ctr,
+            "Malformed guess",
+        )
+    )
+    try:
+        sock.send("?\n".encode("utf-8"))
+    finally:
+        return drop_connection(gd, sock)
 
 
 # ========================== #
