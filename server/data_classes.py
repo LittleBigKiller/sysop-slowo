@@ -13,7 +13,7 @@ class Player:
         self.queued = False
         self.ingame = False
         self.waitforothers = False
-        self.try_ctr = 0
+        self.try_ctr = -5
         self.points = 0
         self.guesses = []
 

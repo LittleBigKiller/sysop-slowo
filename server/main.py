@@ -121,6 +121,7 @@ try:
     GUESS_MISS_TIMEOUT = int(config["GAME"]["GUESS_MISS_TIMEOUT"])
     GUESS_KICK_TIMEOUT = int(config["GAME"]["GUESS_KICK_TIMEOUT"])
     MAX_GUESS_COUNT = int(config["GAME"]["MAX_GUESS_COUNT"])
+    MAX_GAMES = int(config["GAME"]["MAX_GAMES"])
 
     QUEUE_THREAD_TIME = float(config["TIMING"]["QUEUE_THREAD_TIME"])
     LOGGER_THREAD_TIME = float(config["TIMING"]["LOGGER_THREAD_TIME"])
@@ -192,28 +193,31 @@ def f_queue():
                 del game.players[socket]
                 sockets_to_purge.remove(socket)
 
-    for socket, client in clients.items():
-        if not client.queued:
-            if len(game_queue) == 0:
-                new_game = Game(int(time.time()))
-                game_queue.append(new_game)
-                system_log("INFO", f"Created New Game with ID: {new_game.gid}")
+    try:
+        for socket, client in clients.items():
+            if not client.queued:
+                if len(game_queue) == 0:
+                    new_game = Game(int(time.time()))
+                    game_queue.append(new_game)
+                    system_log("INFO", f"Created New Game with ID: {new_game.gid}")
 
-            last_game = game_queue[-1]
+                last_game = game_queue[-1]
 
-            if len(last_game.players.keys()) == MAX_PLAYERS:
-                new_game = Game(int(time.time()))
-                game_queue.append(new_game)
-                system_log("INFO", f"Created New Game with ID: {new_game.gid}")
-                last_game = new_game
+                if len(last_game.players.keys()) == MAX_PLAYERS:
+                    new_game = Game(int(time.time()))
+                    game_queue.append(new_game)
+                    system_log("INFO", f"Created New Game with ID: {new_game.gid}")
+                    last_game = new_game
 
-            last_game.players[socket] = client
-            system_log(
-                "INFO",
-                f"Added player (id: {client.uid}) to queued game (id: {last_game.gid})",
-            )
-            messages_to_log.append(QueueLog("add", client.uid, last_game.gid))
-            client.queued = True
+                last_game.players[socket] = client
+                system_log(
+                    "INFO",
+                    f"Added player (id: {client.uid}) to queued game (id: {last_game.gid})",
+                )
+                messages_to_log.append(QueueLog("add", client.uid, last_game.gid))
+                client.queued = True
+    except:
+        pass
 
     for game in game_queue:
         time_passed = int(time.time() - game.gid)
@@ -282,6 +286,10 @@ def f_logger():
                     message.attempts,
                     message.result,
                 ),
+            )
+            cur.execute(
+                "UPDATE users SET game_count = game_count+1 WHERE id_number = ?",
+                (message.pid,),
             )
             con.commit()
             messages_to_purge.append(message)
@@ -446,20 +454,30 @@ def f_game(gd):
             try:
                 if gd.players[socket].try_ctr > minimum:
                     try:
+                        if not gd.players[socket].waitforothers:
+                            system_log(
+                                "THLCK",
+                                f"Locked player {gd.players[socket].uid}",
+                            )
                         gd.players[socket].waitforothers = True
                     except:
                         pass
             except:
-                break
+                pass
 
             try:
                 if gd.players[socket].try_ctr == minimum:
                     try:
+                        if gd.players[socket].waitforothers:
+                            system_log(
+                                "THLCK",
+                                f"Unlocked player {gd.players[socket].uid}",
+                            )
                         gd.players[socket].waitforothers = False
                     except:
                         pass
             except:
-                break
+                pass
 
     if gd.ended:
         system_log(
@@ -480,6 +498,16 @@ def f_game(gd):
 
 
 def f_player(gd, sock):
+    gd.players[sock].try_ctr = 0
+
+    messages_to_log.append(
+        GameLog(
+            time.time(),
+            gd.gid,
+            f"Player {gd.players[sock].uid} joined the game (id: {gd.gid})",
+            gd.players[sock].uid,
+        )
+    )
     while gd.players[sock].try_ctr < MAX_GUESS_COUNT:
         if gd.ended:
             break
@@ -487,8 +515,6 @@ def f_player(gd, sock):
         gd.players[sock].try_ctr += 1
 
         while gd.players[sock].waitforothers:
-            if gd.ended:
-                break
             time.sleep(PLAYER_LOCK_INTERVAL)
 
         try:
@@ -727,11 +753,15 @@ def auth_user(num, pas):
     con = sqlite3.connect(os.path.join(ROOT_DIR, DB_FILE))
     cur = con.cursor()
     phash = hashlib.sha1(pas.encode("utf-8")).hexdigest()
-    cur.execute("SELECT * from users WHERE id_number = ? AND hash = ?", (num, phash))
+    cur.execute(
+        "SELECT game_count from users WHERE id_number = ? AND hash = ?", (num, phash)
+    )
 
-    if len(cur.fetchall()):
+    game_count = cur.fetchone()
+
+    if game_count:
         con.close()
-        return True
+        return game_count[0] < MAX_GAMES
 
     con.close()
     return False
