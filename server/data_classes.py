@@ -4,7 +4,6 @@ class Game:
         self.players = {}
         self.word = None
         self.ended = False
-        self.lock = False
 
 
 class Player:
@@ -13,7 +12,8 @@ class Player:
         self.address = address
         self.queued = False
         self.ingame = False
-        self.waitforme = False
+        self.waitforothers = False
+        self.try_ctr = 0
         self.points = 0
         self.guesses = []
 
